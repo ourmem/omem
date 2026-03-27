@@ -1,0 +1,12 @@
+{
+  // omem server connection
+  "apiUrl": "http://localhost:8080",
+  "apiKey": "your-tenant-id",
+
+  // recall tuning
+  "maxRecallResults": 10,
+  "similarityThreshold": 0.6,
+
+  // container tag prefix (used for user/project scoping)
+  "containerTagPrefix": "omem"
+}

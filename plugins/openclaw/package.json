@@ -1,0 +1,16 @@
+{
+  "name": "@ourmem/openclaw",
+  "version": "0.1.0",
+  "description": "ourmem persistent memory plugin for OpenClaw — Memory slot + ContextEngine with 7 lifecycle hooks",
+  "type": "module",
+  "main": "src/index.ts",
+  "keywords": ["openclaw", "memory", "ai-agent", "persistent-memory", "ourmem", "context-engine"],
+  "author": "ourmem",
+  "license": "Apache-2.0",
+  "homepage": "https://ourmem.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yhyyz/omem.git",
+    "directory": "plugins/openclaw"
+  }
+}

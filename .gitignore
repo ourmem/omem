@@ -1,0 +1,17 @@
+node_modules/
+dist/
+*.tsbuildinfo
+bun.lockb
+bun.lock
+package-lock.json
+.DS_Store
+*.swp
+*~
+__pycache__/
+*.pyc
+target/
+omem-data/
+.env
+.env.*
+!.env.example
+.sisyphus/
