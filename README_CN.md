@@ -273,6 +273,53 @@ docker run -d -p 8080:8080 \
 
 完整部署指南：[docs/DEPLOY.md](docs/DEPLOY.md)
 
+## 从源码编译
+
+### 两种编译模式
+
+| 模式 | 命令 | 产出 | Bedrock | 运行环境 |
+|------|------|------|---------|---------|
+| **glibc（完整功能）** | `cargo build --release` | 动态链接，~218MB | ✅ 支持 | 需要相同 glibc 版本 |
+| **musl（可移植）** | 见下方 | 静态链接，~182MB | ❌ 用 OpenAI 兼容接口 | **任何 Linux x86_64** |
+
+### glibc 编译（含 Bedrock 支持）
+
+```bash
+cargo build --release -p omem-server
+# 产出: target/release/omem-server
+# 限制: 目标机器 glibc 版本需 >= 编译机器
+```
+
+### musl 静态编译（可移植，零依赖）
+
+产出的单个二进制可以在**任何 Linux x86_64** 上运行 — 不需要安装任何依赖。
+
+```bash
+rustup target add x86_64-unknown-linux-musl
+
+RUSTFLAGS="-C target-feature=+crt-static -C relocation-model=static" \
+  cargo build --release --target x86_64-unknown-linux-musl \
+  -p omem-server --no-default-features
+
+# 产出: target/x86_64-unknown-linux-musl/release/omem-server
+# 完全静态链接，到处能跑
+```
+
+> **注意：** musl 编译通过 `--no-default-features` 禁用了 AWS Bedrock 支持。请使用 `OMEM_EMBED_PROVIDER=openai-compatible` 接入通义千问、OpenAI 等兼容接口。原因是 `aws-lc-sys`（AWS 加密库）在 musl 静态链接下因 `dlopen(NULL)` 不兼容而崩溃（[aws-c-cal#213](https://github.com/awslabs/aws-c-cal/issues/213)），且 Rust 默认的 `static-pie` 输出与 musl-gcc 不兼容（[rust#95926](https://github.com/rust-lang/rust/issues/95926)）。
+
+### 传输到任意服务器
+
+```bash
+# 压缩
+gzip -c target/x86_64-unknown-linux-musl/release/omem-server > omem-server.gz
+
+# 传到服务器
+scp omem-server.gz user@server:/opt/
+
+# 直接运行（不需要任何依赖）
+ssh user@server "gunzip /opt/omem-server.gz && chmod +x /opt/omem-server && /opt/omem-server"
+```
+
 ## API 概览
 
 | 方法 | 端点 | 说明 |

@@ -273,6 +273,53 @@ docker run -d -p 8080:8080 \
 
 Full deployment guide: [docs/DEPLOY.md](docs/DEPLOY.md)
 
+## Build from Source
+
+### Two build modes
+
+| Mode | Command | Binary | Bedrock | Runs on |
+|------|---------|--------|---------|---------|
+| **glibc (full)** | `cargo build --release` | Dynamic linked, ~218MB | ✅ AWS Bedrock | Same glibc version as build host |
+| **musl (portable)** | See below | Static linked, ~182MB | ❌ OpenAI-compatible only | **Any Linux x86_64** |
+
+### glibc build (with Bedrock support)
+
+```bash
+cargo build --release -p omem-server
+# Binary: target/release/omem-server
+# Requires: same or newer glibc on target machine
+```
+
+### musl static build (portable, zero dependencies)
+
+Single binary that runs on **any Linux x86_64** — no glibc, no libraries, nothing.
+
+```bash
+rustup target add x86_64-unknown-linux-musl
+
+RUSTFLAGS="-C target-feature=+crt-static -C relocation-model=static" \
+  cargo build --release --target x86_64-unknown-linux-musl \
+  -p omem-server --no-default-features
+
+# Binary: target/x86_64-unknown-linux-musl/release/omem-server
+# Statically linked, runs anywhere
+```
+
+> **Note:** The musl build disables `--no-default-features` which excludes AWS Bedrock support. Use `OMEM_EMBED_PROVIDER=openai-compatible` (e.g. DashScope, OpenAI) instead. This is because `aws-lc-sys` (AWS crypto library) crashes on musl static linking due to `dlopen(NULL)` incompatibility ([aws-c-cal#213](https://github.com/awslabs/aws-c-cal/issues/213)), and Rust's default `static-pie` output segfaults with musl-gcc ([rust-lang/rust#95926](https://github.com/rust-lang/rust/issues/95926)).
+
+### Transfer to any server
+
+```bash
+# Compress
+gzip -c target/x86_64-unknown-linux-musl/release/omem-server > omem-server.gz
+
+# Copy to server
+scp omem-server.gz user@server:/opt/
+
+# Run (no dependencies needed)
+ssh user@server "gunzip /opt/omem-server.gz && chmod +x /opt/omem-server && /opt/omem-server"
+```
+
 ## API at a Glance
 
 | Method | Endpoint | Description |
