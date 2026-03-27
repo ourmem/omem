@@ -1,0 +1,37 @@
+# === 闭源阶段：隐藏服务端代码 ===
+omem-server/
+target/
+
+# === 数据 & 临时文件 ===
+omem-data/
+*.log
+.env
+.env.*
+!.env.example
+
+# === 构建产物 ===
+node_modules/
+dist/
+*.tsbuildinfo
+bun.lockb
+
+# === 系统 ===
+.DS_Store
+*.swp
+*.swo
+*~
+
+# === 工作状态（不需要发布）===
+.sisyphus/
+
+# === Rust 构建文件（闭源阶段不公开）===
+Cargo.toml
+Cargo.lock
+
+# === Python 缓存 ===
+__pycache__/
+*.pyc
+
+# === 锁文件 ===
+bun.lock
+package-lock.json

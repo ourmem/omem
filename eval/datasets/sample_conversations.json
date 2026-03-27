@@ -1,0 +1,247 @@
+[
+  {
+    "id": "conv-01-profile",
+    "category": "profile",
+    "description": "User shares personal background information",
+    "messages": [
+      {"role": "user", "content": "Hi! I'm Alex Chen, a senior backend engineer at Stripe. I've been writing Rust for about 3 years now, and before that I was mainly a Go developer."},
+      {"role": "assistant", "content": "Nice to meet you, Alex! That's a great background — Rust and Go are both excellent systems languages. How can I help you today?"},
+      {"role": "user", "content": "I'm based in San Francisco and I usually work from home. My timezone is PST."},
+      {"role": "assistant", "content": "Got it! Working from home in SF, PST timezone. What are you working on?"}
+    ],
+    "expected_facts": [
+      "Alex Chen is a senior backend engineer at Stripe",
+      "Has 3 years of Rust experience",
+      "Previously a Go developer",
+      "Based in San Francisco",
+      "Works from home",
+      "Timezone is PST"
+    ],
+    "search_queries": [
+      {"query": "What is Alex's job?", "should_contain": "Stripe"},
+      {"query": "programming languages experience", "should_contain": "Rust"},
+      {"query": "where does the user live", "should_contain": "San Francisco"}
+    ]
+  },
+  {
+    "id": "conv-02-preferences",
+    "category": "preferences",
+    "description": "User expresses coding style and tool preferences",
+    "messages": [
+      {"role": "user", "content": "When writing Rust code, I always prefer to use thiserror for error handling instead of anyhow. I like explicit error types."},
+      {"role": "assistant", "content": "That makes sense — thiserror gives you strongly typed errors with derive macros. Do you have other coding preferences?"},
+      {"role": "user", "content": "Yes, I prefer Neovim over VS Code, and I always use the Catppuccin Mocha color theme. For terminal I use Wezterm with Fira Code font."},
+      {"role": "assistant", "content": "Great setup! Neovim + Catppuccin Mocha + Wezterm with Fira Code is a solid combination."},
+      {"role": "user", "content": "Oh and I drink oat milk lattes from Blue Bottle, never Starbucks."},
+      {"role": "assistant", "content": "Noted — Blue Bottle oat milk lattes it is!"}
+    ],
+    "expected_facts": [
+      "Prefers thiserror over anyhow for Rust error handling",
+      "Uses Neovim, not VS Code",
+      "Uses Catppuccin Mocha color theme",
+      "Uses Wezterm terminal with Fira Code font",
+      "Drinks oat milk lattes from Blue Bottle",
+      "Does not like Starbucks"
+    ],
+    "search_queries": [
+      {"query": "error handling preference", "should_contain": "thiserror"},
+      {"query": "editor and color theme", "should_contain": "Neovim"},
+      {"query": "coffee preference", "should_contain": "Blue Bottle"}
+    ]
+  },
+  {
+    "id": "conv-03-entities",
+    "category": "entities",
+    "description": "User discusses projects and technologies they work with",
+    "messages": [
+      {"role": "user", "content": "I'm currently working on a project called 'Nexus' — it's an internal API gateway at Stripe that handles rate limiting and authentication for all microservices."},
+      {"role": "assistant", "content": "Nexus sounds like a critical piece of infrastructure. What's the tech stack?"},
+      {"role": "user", "content": "It's built with Rust using axum 0.8 and tokio. We store config in etcd and use Redis for rate limit counters. The whole thing runs on Kubernetes."},
+      {"role": "assistant", "content": "Solid stack — axum + tokio for the async runtime, etcd for distributed config, Redis for fast counters, all on K8s. How's the team structured?"},
+      {"role": "user", "content": "My team lead is Sarah Kim, and we have 5 engineers total. We use Linear for project management and GitHub for code."},
+      {"role": "assistant", "content": "Got it — a focused team of 5 under Sarah Kim, using Linear + GitHub."}
+    ],
+    "expected_facts": [
+      "Working on project called Nexus at Stripe",
+      "Nexus is an internal API gateway for rate limiting and auth",
+      "Nexus uses Rust with axum 0.8 and tokio",
+      "Uses etcd for config and Redis for rate limiting",
+      "Runs on Kubernetes",
+      "Team lead is Sarah Kim, team of 5 engineers",
+      "Uses Linear for project management"
+    ],
+    "search_queries": [
+      {"query": "What is the Nexus project?", "should_contain": "API gateway"},
+      {"query": "tech stack for current project", "should_contain": "axum"},
+      {"query": "who is the team lead", "should_contain": "Sarah Kim"}
+    ]
+  },
+  {
+    "id": "conv-04-events",
+    "category": "events",
+    "description": "User describes recent events and incidents",
+    "messages": [
+      {"role": "user", "content": "We had a production incident last Tuesday — the rate limiter in Nexus started rejecting valid requests because the Redis cluster had a split-brain issue."},
+      {"role": "assistant", "content": "That sounds serious. A Redis split-brain can cause inconsistent rate limit counters. How did you resolve it?"},
+      {"role": "user", "content": "We fixed it by adding a circuit breaker that falls back to local in-memory rate limiting when Redis is unhealthy. The incident lasted about 45 minutes and affected roughly 2% of API traffic."},
+      {"role": "assistant", "content": "Smart fix — a circuit breaker with local fallback is a good resilience pattern. 45 minutes with 2% impact is relatively contained."},
+      {"role": "user", "content": "Yeah, and next week I have a design review meeting on Thursday at 2pm PST to present the new circuit breaker architecture to the platform team."},
+      {"role": "assistant", "content": "Good luck with the design review! Presenting the circuit breaker pattern to the platform team should go well given the real-world validation."}
+    ],
+    "expected_facts": [
+      "Production incident last Tuesday with Redis split-brain",
+      "Rate limiter rejected valid requests",
+      "Fixed with circuit breaker + local in-memory fallback",
+      "Incident lasted 45 minutes, affected 2% of traffic",
+      "Design review meeting next Thursday at 2pm PST"
+    ],
+    "search_queries": [
+      {"query": "production incident", "should_contain": "Redis"},
+      {"query": "circuit breaker", "should_contain": "fallback"},
+      {"query": "upcoming meetings", "should_contain": "design review"}
+    ]
+  },
+  {
+    "id": "conv-05-cases",
+    "category": "cases",
+    "description": "User describes a debugging session and solution",
+    "messages": [
+      {"role": "user", "content": "I spent 3 hours debugging a weird issue today. Our axum middleware was silently dropping the Authorization header for requests that had a body larger than 64KB."},
+      {"role": "assistant", "content": "That's a tricky one! Was it related to how axum handles body extraction and middleware ordering?"},
+      {"role": "user", "content": "Exactly! The issue was that we had a body size limit middleware BEFORE the auth middleware. When the body exceeded the limit, it would reject the request before auth could read the header. The fix was to reorder the middleware layers."},
+      {"role": "assistant", "content": "Classic middleware ordering issue. In axum, the layer order matters — layers added later wrap the earlier ones, so the auth check needs to happen before body size validation."},
+      {"role": "user", "content": "Right. The key lesson: in axum, `.layer()` calls wrap outside-in, so the LAST layer added runs FIRST. We now have auth → rate-limit → body-size as our standard order."},
+      {"role": "assistant", "content": "That's a great rule of thumb to document. Auth first, then rate limiting, then body validation — ensures security checks happen before any resource-intensive operations."}
+    ],
+    "expected_facts": [
+      "Debugging issue: axum middleware dropping Authorization header for large bodies",
+      "Root cause: body size limit middleware ordered before auth middleware",
+      "Fix: reorder middleware layers",
+      "Axum .layer() calls wrap outside-in, last added runs first",
+      "Standard middleware order: auth → rate-limit → body-size"
+    ],
+    "search_queries": [
+      {"query": "axum middleware ordering issue", "should_contain": "Authorization"},
+      {"query": "middleware layer order in axum", "should_contain": "outside-in"},
+      {"query": "debugging session body size", "should_contain": "64KB"}
+    ]
+  },
+  {
+    "id": "conv-06-patterns",
+    "category": "patterns",
+    "description": "User reveals recurring work patterns and habits",
+    "messages": [
+      {"role": "user", "content": "I've noticed I always start my day by reviewing PRs before writing any code. Usually takes about 30-45 minutes."},
+      {"role": "assistant", "content": "That's a solid habit — reviewing PRs first thing helps you stay aware of what the team is working on. Do you have other daily patterns?"},
+      {"role": "user", "content": "After PR reviews, I check Linear for my sprint tasks. I tend to work on the hardest task first when my energy is highest, usually between 9am and noon. After lunch I do lighter tasks like documentation or tests."},
+      {"role": "assistant", "content": "Classic 'eat the frog' approach — tackling the hardest work during peak energy hours. That's a well-known productivity pattern."},
+      {"role": "user", "content": "Also, whenever I'm stuck on a problem for more than 30 minutes, I take a walk around the block. It almost always helps me think of a solution."},
+      {"role": "assistant", "content": "Walking breaks are scientifically proven to boost creative problem-solving. The 30-minute threshold is a good trigger."}
+    ],
+    "expected_facts": [
+      "Starts day by reviewing PRs (30-45 minutes)",
+      "Checks Linear for sprint tasks after PR reviews",
+      "Works on hardest task first, between 9am and noon",
+      "Does lighter tasks (docs, tests) after lunch",
+      "Takes a walk when stuck for more than 30 minutes"
+    ],
+    "search_queries": [
+      {"query": "daily work routine", "should_contain": "PR"},
+      {"query": "productivity habits", "should_contain": "hardest task"},
+      {"query": "what does user do when stuck", "should_contain": "walk"}
+    ]
+  },
+  {
+    "id": "conv-07-preference-update",
+    "category": "preferences",
+    "description": "User updates a previously stated preference",
+    "messages": [
+      {"role": "user", "content": "Actually, I've switched from Neovim to Zed editor last month. It has native Rust support and the AI integration is really good."},
+      {"role": "assistant", "content": "Zed is gaining a lot of traction! The native Rust support and built-in AI features are compelling. Are you still using the Catppuccin theme?"},
+      {"role": "user", "content": "No, I switched to the default Zed dark theme. It's clean enough. But I still use Fira Code font everywhere."},
+      {"role": "assistant", "content": "Makes sense — Zed's default dark theme is well-designed. Fira Code with its ligatures is hard to beat for coding."}
+    ],
+    "expected_facts": [
+      "Switched from Neovim to Zed editor",
+      "Zed chosen for native Rust support and AI integration",
+      "Now uses Zed default dark theme instead of Catppuccin Mocha",
+      "Still uses Fira Code font"
+    ],
+    "search_queries": [
+      {"query": "current code editor", "should_contain": "Zed"},
+      {"query": "why did user switch editors", "should_contain": "Rust support"}
+    ]
+  },
+  {
+    "id": "conv-08-entity-relation",
+    "category": "entities",
+    "description": "User describes relationships between entities",
+    "messages": [
+      {"role": "user", "content": "I'm mentoring a junior engineer named David Park. He joined Stripe 3 months ago from a bootcamp. He's really good at frontend but needs help with systems programming."},
+      {"role": "assistant", "content": "That's great that you're mentoring David! The bootcamp-to-systems-programming transition can be challenging. How are you structuring the mentorship?"},
+      {"role": "user", "content": "We do 1-on-1s every Wednesday at 10am. I've been having him work on the Nexus monitoring dashboard — it's a good mix of frontend (React + Grafana) and backend (Prometheus metrics in Rust)."},
+      {"role": "assistant", "content": "Perfect project choice — the monitoring dashboard lets David leverage his frontend strengths while gradually building systems skills through the Prometheus/Rust integration."}
+    ],
+    "expected_facts": [
+      "Mentoring David Park, junior engineer at Stripe",
+      "David joined 3 months ago from a bootcamp",
+      "David is strong in frontend, needs help with systems programming",
+      "Weekly 1-on-1 meetings on Wednesdays at 10am",
+      "David is working on Nexus monitoring dashboard",
+      "Dashboard uses React + Grafana frontend, Prometheus + Rust backend"
+    ],
+    "search_queries": [
+      {"query": "who is David Park", "should_contain": "junior engineer"},
+      {"query": "mentoring schedule", "should_contain": "Wednesday"},
+      {"query": "Nexus monitoring dashboard", "should_contain": "Grafana"}
+    ]
+  },
+  {
+    "id": "conv-09-private-data",
+    "category": "profile",
+    "description": "Conversation with private data that should be redacted",
+    "messages": [
+      {"role": "user", "content": "My work email is alex.chen@stripe.com and my GitHub handle is @alexchen-rs."},
+      {"role": "assistant", "content": "Got it! I'll remember your GitHub handle @alexchen-rs. Is there anything else you'd like me to know?"},
+      {"role": "user", "content": "<private>My SSN is 123-45-6789 and my home address is 742 Evergreen Terrace, SF.</private> My preferred communication channel is Slack, and my handle there is @alex.chen."},
+      {"role": "assistant", "content": "I'll remember your Slack handle @alex.chen. I've noted your communication preferences."}
+    ],
+    "expected_facts": [
+      "Work email: alex.chen@stripe.com",
+      "GitHub handle: @alexchen-rs",
+      "Preferred communication: Slack (@alex.chen)",
+      "Private data (SSN, home address) should NOT be stored"
+    ],
+    "search_queries": [
+      {"query": "contact information", "should_contain": "Slack"},
+      {"query": "GitHub username", "should_contain": "alexchen-rs"},
+      {"query": "SSN or social security", "should_not_contain": "123-45-6789"}
+    ]
+  },
+  {
+    "id": "conv-10-complex-event",
+    "category": "events",
+    "description": "Multi-turn conversation about a complex technical decision",
+    "messages": [
+      {"role": "user", "content": "We're evaluating whether to migrate Nexus from etcd to CockroachDB for configuration storage. The main driver is that etcd's 1.5MB value size limit is becoming a bottleneck for our larger service configs."},
+      {"role": "assistant", "content": "That's a significant architectural decision. CockroachDB would remove the value size limit and give you SQL semantics. What are the trade-offs you're considering?"},
+      {"role": "user", "content": "The pros are: no size limits, SQL queries for config search, built-in CDC for change notifications. The cons are: higher latency (etcd is ~2ms, CockroachDB is ~10ms for reads), more operational complexity, and we'd need to rewrite the config watch mechanism."},
+      {"role": "assistant", "content": "The 5x latency increase is notable but might be acceptable if config reads aren't in the hot path. The CDC for change notifications could actually simplify your current watch implementation."},
+      {"role": "user", "content": "We decided to go with a hybrid approach: keep etcd for hot-path configs that need <5ms reads, and use CockroachDB for large service definitions and audit logs. Sarah approved the plan yesterday."},
+      {"role": "assistant", "content": "Smart compromise — using each system for its strengths. etcd for low-latency hot configs, CockroachDB for large payloads and queryability. Best of both worlds."}
+    ],
+    "expected_facts": [
+      "Evaluating migration from etcd to CockroachDB for Nexus config storage",
+      "etcd bottleneck: 1.5MB value size limit",
+      "CockroachDB pros: no size limits, SQL queries, built-in CDC",
+      "CockroachDB cons: higher latency (~10ms vs etcd ~2ms), more operational complexity",
+      "Decision: hybrid approach — etcd for hot-path, CockroachDB for large configs",
+      "Sarah approved the hybrid plan"
+    ],
+    "search_queries": [
+      {"query": "etcd migration decision", "should_contain": "hybrid"},
+      {"query": "CockroachDB evaluation", "should_contain": "latency"},
+      {"query": "config storage architecture", "should_contain": "etcd"}
+    ]
+  }
+]

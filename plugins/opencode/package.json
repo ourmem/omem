@@ -1,0 +1,23 @@
+{
+  "name": "@ourmem/opencode",
+  "version": "0.1.0",
+  "description": "ourmem persistent memory plugin for OpenCode — auto-recall, auto-capture, 5 memory tools",
+  "type": "module",
+  "main": "src/index.ts",
+  "keywords": ["opencode", "memory", "ai-agent", "persistent-memory", "ourmem"],
+  "author": "ourmem",
+  "license": "Apache-2.0",
+  "homepage": "https://ourmem.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yhyyz/omem.git",
+    "directory": "plugins/opencode"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.0.162"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^5.7.0"
+  }
+}
