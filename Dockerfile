@@ -1,7 +1,9 @@
 # ============================================================
 # Stage 1: Build
 # ============================================================
-FROM rust:1.94-slim-bookworm AS builder
+FROM rust:1.84-slim-bookworm AS builder
+
+ARG TARGETARCH
 
 RUN apt-get update && apt-get install -y \
     pkg-config \
@@ -10,10 +12,15 @@ RUN apt-get update && apt-get install -y \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install protoc 29.5 (Debian bookworm default is too old for lancedb)
-RUN curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v29.5/protoc-29.5-linux-x86_64.zip \
-    && unzip protoc-29.5-linux-x86_64.zip -d /usr/local \
-    && rm protoc-29.5-linux-x86_64.zip
+# Install protoc (multi-arch)
+RUN case "$TARGETARCH" in \
+      amd64) PROTOC_ARCH="x86_64" ;; \
+      arm64) PROTOC_ARCH="aarch_64" ;; \
+      *) PROTOC_ARCH="x86_64" ;; \
+    esac && \
+    curl -OL "https://github.com/protocolbuffers/protobuf/releases/download/v29.5/protoc-29.5-linux-${PROTOC_ARCH}.zip" && \
+    unzip "protoc-29.5-linux-${PROTOC_ARCH}.zip" -d /usr/local && \
+    rm "protoc-29.5-linux-${PROTOC_ARCH}.zip"
 
 WORKDIR /app
 
@@ -21,6 +28,7 @@ WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY omem-server/ omem-server/
 
+# Build with all features (glibc supports everything including Bedrock)
 RUN cargo build --release -p omem-server
 
 # ============================================================
@@ -28,19 +36,29 @@ RUN cargo build --release -p omem-server
 # ============================================================
 FROM debian:bookworm-slim
 
+LABEL org.opencontainers.image.source="https://github.com/ourmem/omem"
+LABEL org.opencontainers.image.description="ourmem — Shared Memory That Never Forgets"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
+
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -r -s /bin/false -d /data omem \
+    && mkdir -p /data && chown omem:omem /data
 
 COPY --from=builder /app/target/release/omem-server /usr/local/bin/
+
+VOLUME ["/data"]
+ENV OMEM_DATA_DIR=/data
+ENV RUST_LOG=info
 
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s \
     CMD curl -f http://localhost:8080/health || exit 1
 
-ENV RUST_LOG=info
+USER omem
 
 CMD ["omem-server"]

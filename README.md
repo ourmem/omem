@@ -191,7 +191,7 @@ curl -sX POST https://api.ourmem.ai/v1/tenants \
 **Self-deploy:**
 
 ```bash
-docker run -d -p 8080:8080 -e OMEM_EMBED_PROVIDER=bedrock ourmem:latest
+docker run -d -p 8080:8080 -e OMEM_EMBED_PROVIDER=bedrock ghcr.io/ourmem/omem-server:latest
 curl -sX POST http://localhost:8080/v1/tenants \
   -H "Content-Type: application/json" \
   -d '{"name": "my-workspace"}' | jq .
@@ -270,19 +270,19 @@ Browse, search, and manage your agent's memories visually at **[ourmem.ai/space]
 
 ```bash
 # Minimal (BM25 search only, no embedding API needed)
-docker run -d -p 8080:8080 ourmem:latest
+docker run -d -p 8080:8080 ghcr.io/ourmem/omem-server:latest
 
 # With Bedrock embedding (recommended, needs AWS credentials)
 docker run -d -p 8080:8080 \
   -e OMEM_EMBED_PROVIDER=bedrock \
   -e AWS_REGION=us-east-1 \
-  ourmem:latest
+  ghcr.io/ourmem/omem-server:latest
 
 # With OpenAI-compatible embedding
 docker run -d -p 8080:8080 \
   -e OMEM_EMBED_PROVIDER=openai-compatible \
   -e OMEM_EMBED_API_KEY=sk-xxx \
-  ourmem:latest
+  ghcr.io/ourmem/omem-server:latest
 ```
 
 Full deployment guide: [docs/DEPLOY.md](docs/DEPLOY.md)

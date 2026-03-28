@@ -23,7 +23,7 @@ The development setup uses MinIO as a local S3 replacement.
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/omem.git
+git clone https://github.com/ourmem/omem.git
 cd omem
 
 # Copy environment file
