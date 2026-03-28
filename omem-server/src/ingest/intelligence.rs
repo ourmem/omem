@@ -1,37 +1,101 @@
 use std::sync::Arc;
 
+use tokio::sync::Semaphore;
 use tracing::{error, info, warn};
 
 use crate::domain::error::OmemError;
 use crate::embed::EmbedService;
 use crate::ingest::extractor::FactExtractor;
+use crate::ingest::prompts;
 use crate::ingest::reconciler::Reconciler;
 use crate::ingest::session::SessionStore;
-use crate::ingest::types::IngestMessage;
+use crate::ingest::types::{ExtractedFact, IngestMessage};
 use crate::llm::LlmService;
 use crate::store::{LanceStore, SpaceStore};
 
 const SMART_SPLIT_MAX_CHARS: usize = 80_000;
 const SMART_SPLIT_OVERLAP: usize = 2_000;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ContentHint {
+    Conversation,
+    ShortNote,
+    StructuredDoc,
+    LargeDoc,
+}
+
+pub fn detect_content_type(content: &str) -> ContentHint {
+    if content.len() > SMART_SPLIT_MAX_CHARS {
+        return ContentHint::LargeDoc;
+    }
+    // Require at least 3 conversation-role lines to classify as conversation.
+    // A document mentioning "user:" once in an example should NOT be treated as a chat log.
+    let role_patterns: &[&str] = &[
+        "\nuser:", "\nUser:", "\nassistant:", "\nAssistant:",
+        "\nHuman:", "\nhuman:", "\nAI:", "\nsystem:",
+    ];
+    let role_line_count: usize = role_patterns
+        .iter()
+        .map(|p| content.matches(p).count())
+        .sum();
+    if role_line_count >= 3 {
+        return ContentHint::Conversation;
+    }
+    let has_headings = content.contains("\n## ")
+        || content.contains("\n# ")
+        || content.starts_with("## ")
+        || content.starts_with("# ");
+    let word_count = content.split_whitespace().count();
+    if word_count < 500 && !has_headings {
+        ContentHint::ShortNote
+    } else {
+        ContentHint::StructuredDoc
+    }
+}
+
+pub fn split_by_sections(text: &str) -> Vec<String> {
+    let mut sections = Vec::new();
+    let mut current = String::new();
+
+    for line in text.lines() {
+        if (line.starts_with("## ") || line.starts_with("# ")) && !current.trim().is_empty() {
+            sections.push(std::mem::take(&mut current));
+        }
+        current.push_str(line);
+        current.push('\n');
+    }
+    if !current.trim().is_empty() {
+        sections.push(current);
+    }
+    if sections.is_empty() {
+        sections.push(text.to_string());
+    }
+    sections
+}
+
 pub struct IntelligenceTask {
     session_store: Arc<SessionStore>,
     extractor: Arc<FactExtractor>,
     reconciler: Arc<Reconciler>,
     space_store: Arc<SpaceStore>,
+    reconcile_semaphore: Arc<Semaphore>,
     task_id: String,
     tenant_id: String,
+    strategy: String,
 }
 
 impl IntelligenceTask {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         store: Arc<LanceStore>,
         session_store: Arc<SessionStore>,
         embed: Arc<dyn EmbedService>,
         llm: Arc<dyn LlmService>,
         space_store: Arc<SpaceStore>,
+        reconcile_semaphore: Arc<Semaphore>,
         task_id: String,
         tenant_id: String,
+        strategy: String,
     ) -> Self {
         let mut extractor = FactExtractor::new(llm.clone());
         extractor.max_input_chars = SMART_SPLIT_MAX_CHARS;
@@ -43,8 +107,10 @@ impl IntelligenceTask {
             extractor: Arc::new(extractor),
             reconciler: Arc::new(reconciler),
             space_store,
+            reconcile_semaphore,
             task_id,
             tenant_id,
+            strategy,
         }
     }
 
@@ -87,36 +153,22 @@ impl IntelligenceTask {
             .collect::<Vec<_>>()
             .join("\n\n");
 
-        let chunks = smart_split(&full_text, SMART_SPLIT_MAX_CHARS, SMART_SPLIT_OVERLAP);
+        let hint = match self.strategy.as_str() {
+            "atomic" => ContentHint::Conversation,
+            "section" => ContentHint::StructuredDoc,
+            "document" => ContentHint::ShortNote,
+            _ => detect_content_type(&full_text),
+        };
 
-        let mut all_facts = Vec::new();
-        for (i, chunk) in chunks.iter().enumerate() {
-            let messages = vec![IngestMessage {
-                role: "user".to_string(),
-                content: chunk.to_string(),
-            }];
+        info!(task_id = %self.task_id, strategy = %self.strategy, hint = ?hint, "intelligence routing");
 
-            match self.extractor.extract(&messages, None).await {
-                Ok(facts) => {
-                    all_facts.extend(facts);
-                    let facts_count = all_facts.len();
-                    let total = chunks.len();
-                    let progress = i + 1;
-                    self.set_task_field(move |t| {
-                        t.extraction_chunks = total;
-                        t.extraction_facts = facts_count;
-                        t.extraction_progress = progress;
-                    })
-                    .await;
-                }
-                Err(e) => {
-                    warn!(chunk = i, error = %e, task_id = %self.task_id, "chunk extraction failed");
-                    let err_msg = format!("chunk {} extraction failed: {}", i, e);
-                    self.set_task_field(move |t| t.errors.push(err_msg))
-                        .await;
-                }
+        let all_facts = match hint {
+            ContentHint::Conversation | ContentHint::LargeDoc => {
+                self.extract_atomic(&full_text).await?
             }
-        }
+            ContentHint::StructuredDoc => self.extract_sections(&full_text).await?,
+            ContentHint::ShortNote => self.extract_document(&full_text).await?,
+        };
 
         self.set_task_field(|t| t.extraction_status = "completed".to_string())
             .await;
@@ -134,6 +186,11 @@ impl IntelligenceTask {
 
         self.set_task_field(|t| t.reconcile_status = "running".to_string())
             .await;
+
+        info!(task_id = %self.task_id, "waiting for reconcile lock");
+        let _reconcile_permit = self.reconcile_semaphore.acquire().await
+            .map_err(|e| OmemError::Internal(format!("reconcile semaphore: {e}")))?;
+        info!(task_id = %self.task_id, "reconcile lock acquired");
 
         match self.reconciler.reconcile(&all_facts, &self.tenant_id).await {
             Ok(memories) => {
@@ -168,6 +225,118 @@ impl IntelligenceTask {
         .await;
 
         Ok(())
+    }
+
+    async fn extract_atomic(&self, full_text: &str) -> Result<Vec<ExtractedFact>, OmemError> {
+        let chunks = smart_split(full_text, SMART_SPLIT_MAX_CHARS, SMART_SPLIT_OVERLAP);
+        let mut all_facts = Vec::new();
+
+        for (i, chunk) in chunks.iter().enumerate() {
+            let messages = vec![IngestMessage {
+                role: "user".to_string(),
+                content: chunk.to_string(),
+            }];
+
+            match self.extractor.extract(&messages, None).await {
+                Ok(mut facts) => {
+                    for fact in &mut facts {
+                        fact.source_text = Some(chunk.to_string());
+                    }
+                    all_facts.extend(facts);
+                    let facts_count = all_facts.len();
+                    let total = chunks.len();
+                    let progress = i + 1;
+                    self.set_task_field(move |t| {
+                        t.extraction_chunks = total;
+                        t.extraction_facts = facts_count;
+                        t.extraction_progress = progress;
+                    })
+                    .await;
+                }
+                Err(e) => {
+                    warn!(chunk = i, error = %e, task_id = %self.task_id, "chunk extraction failed");
+                    let err_msg = format!("chunk {} extraction failed: {}", i, e);
+                    self.set_task_field(move |t| t.errors.push(err_msg))
+                        .await;
+                }
+            }
+        }
+
+        Ok(all_facts)
+    }
+
+    async fn extract_sections(&self, full_text: &str) -> Result<Vec<ExtractedFact>, OmemError> {
+        let sections = split_by_sections(full_text);
+        let mut all_facts = Vec::new();
+
+        for (i, section) in sections.iter().enumerate() {
+            let (system, user) = prompts::build_section_prompt(section);
+            match Self::extract_with_retry(&self.extractor, &system, &user, 2).await {
+                Ok(mut facts) => {
+                    for fact in &mut facts {
+                        fact.source_text = Some(section.clone());
+                    }
+                    all_facts.extend(facts);
+                    let facts_count = all_facts.len();
+                    let total = sections.len();
+                    let progress = i + 1;
+                    self.set_task_field(move |t| {
+                        t.extraction_chunks = total;
+                        t.extraction_facts = facts_count;
+                        t.extraction_progress = progress;
+                    })
+                    .await;
+                }
+                Err(e) => {
+                    warn!(section = i, error = %e, task_id = %self.task_id, "section extraction failed");
+                    let err_msg = format!("section {} extraction failed: {}", i, e);
+                    self.set_task_field(move |t| t.errors.push(err_msg))
+                        .await;
+                }
+            }
+        }
+
+        Ok(all_facts)
+    }
+
+    async fn extract_document(&self, full_text: &str) -> Result<Vec<ExtractedFact>, OmemError> {
+        let (system, user) = prompts::build_document_prompt(full_text);
+        let mut facts = Self::extract_with_retry(&self.extractor, &system, &user, 2).await?;
+        for fact in &mut facts {
+            fact.source_text = Some(full_text.to_string());
+        }
+
+        let facts_count = facts.len();
+        self.set_task_field(move |t| {
+            t.extraction_chunks = 1;
+            t.extraction_facts = facts_count;
+            t.extraction_progress = 1;
+        })
+        .await;
+
+        Ok(facts)
+    }
+
+    async fn extract_with_retry(
+        extractor: &FactExtractor,
+        system: &str,
+        user: &str,
+        max_retries: usize,
+    ) -> Result<Vec<ExtractedFact>, OmemError> {
+        let mut last_err = None;
+        for attempt in 0..=max_retries {
+            if attempt > 0 {
+                tokio::time::sleep(std::time::Duration::from_secs(1 << (attempt - 1))).await;
+            }
+            match extractor.extract_with_prompts(system, user).await {
+                Ok(facts) => return Ok(facts),
+                Err(e) => {
+                    warn!(attempt, error = %e, "extraction attempt failed, retrying");
+                    last_err = Some(e);
+                }
+            }
+        }
+        Err(last_err.unwrap_or_else(|| OmemError::Internal("no attempts made".into())))
     }
 
     async fn set_task_field<F: FnOnce(&mut crate::store::spaces::ImportTaskRecord)>(&self, f: F) {

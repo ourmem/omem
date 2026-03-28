@@ -68,6 +68,28 @@ impl FactExtractor {
         Ok(facts)
     }
 
+    /// Extract using custom system/user prompts (for section/document modes).
+    pub async fn extract_with_prompts(
+        &self,
+        system: &str,
+        user: &str,
+    ) -> Result<Vec<ExtractedFact>, OmemError> {
+        let result: ExtractionResult = complete_json(self.llm.as_ref(), system, user).await?;
+
+        let facts = result
+            .memories
+            .into_iter()
+            .filter(|f| !f.l0_abstract.trim().is_empty())
+            .map(|mut f| {
+                f.category = normalize_category(&f.category);
+                f
+            })
+            .take(self.max_facts)
+            .collect();
+
+        Ok(facts)
+    }
+
     fn format_messages(&self, messages: &[IngestMessage]) -> String {
         let mut full_text = String::new();
         for msg in messages {

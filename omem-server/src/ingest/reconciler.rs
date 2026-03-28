@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::domain::category::Category;
 use crate::domain::error::OmemError;
@@ -11,7 +11,7 @@ use crate::domain::types::MemoryType;
 use crate::embed::EmbedService;
 use crate::ingest::preference_slots;
 use crate::ingest::prompts;
-use crate::ingest::types::{ExtractedFact, ReconcileResult};
+use crate::ingest::types::{BatchDedupResult, ExtractedFact, ReconcileResult};
 use crate::llm::{complete_json, LlmService};
 use crate::store::LanceStore;
 
@@ -63,6 +63,10 @@ impl Reconciler {
         }
 
         if existing.is_empty() {
+            if facts.len() > 1 {
+                let deduped = self.batch_self_dedup(facts).await?;
+                return self.create_all_facts(&deduped, tenant_id).await;
+            }
             return self.create_all_facts(facts, tenant_id).await;
         }
 
@@ -300,7 +304,8 @@ impl Reconciler {
             context_label: context_label.clone(),
         });
 
-        let embeddings = self.embed.embed(&[new_mem.l0_abstract.clone()]).await?;
+        let ctx_source = fact.source_text.as_deref().unwrap_or(&fact.l0_abstract);
+        let embeddings = self.embed.embed(&[ctx_source.to_string()]).await?;
         let vector = embeddings.first().map(|v| v.as_slice());
         self.store.update(&new_mem, vector).await?;
 
@@ -343,7 +348,8 @@ impl Reconciler {
             context_label: None,
         });
 
-        let embeddings = self.embed.embed(&[new_mem.l0_abstract.clone()]).await?;
+        let contra_source = fact.source_text.as_deref().unwrap_or(&fact.l0_abstract);
+        let embeddings = self.embed.embed(&[contra_source.to_string()]).await?;
         let vector = embeddings.first().map(|v| v.as_slice());
         self.store.update(&new_mem, vector).await?;
 
@@ -360,6 +366,34 @@ impl Reconciler {
         Ok(())
     }
 
+    async fn batch_self_dedup(
+        &self,
+        facts: &[ExtractedFact],
+    ) -> Result<Vec<ExtractedFact>, OmemError> {
+        let (system, user) = prompts::build_batch_dedup_prompt(facts);
+
+        let result: BatchDedupResult = complete_json(self.llm.as_ref(), &system, &user).await?;
+
+        let deduped: Vec<ExtractedFact> = result
+            .keep_indices
+            .iter()
+            .filter_map(|&idx| facts.get(idx).cloned())
+            .collect();
+
+        if deduped.is_empty() {
+            // Safety: if LLM returns garbage, keep all facts
+            Ok(facts.to_vec())
+        } else {
+            info!(
+                original = facts.len(),
+                deduped = deduped.len(),
+                removed = facts.len() - deduped.len(),
+                "batch self-dedup completed"
+            );
+            Ok(deduped)
+        }
+    }
+
     async fn gather_existing(
         &self,
         facts: &[ExtractedFact],
@@ -373,9 +407,11 @@ impl Reconciler {
                 break;
             }
 
+            let search_text = fact.source_text.as_deref().unwrap_or(&fact.l0_abstract);
+
             let embed_result = self
                 .embed
-                .embed(std::slice::from_ref(&fact.l0_abstract))
+                .embed(std::slice::from_ref(&search_text.to_string()))
                 .await;
 
             if let Ok(vectors) = embed_result {
@@ -406,9 +442,13 @@ impl Reconciler {
                 warn!("embedding failed during gather");
             }
 
+            let fts_query = fact.source_text.as_deref()
+                .map(|s| s.chars().take(200).collect::<String>())
+                .unwrap_or_else(|| fact.l0_abstract.clone());
+
             match self
                 .store
-                .fts_search(&fact.l0_abstract, self.max_per_fact, None, None)
+                .fts_search(&fts_query, self.max_per_fact, None, None)
                 .await
             {
                 Ok(results) => {
@@ -456,13 +496,15 @@ impl Reconciler {
             .parse()
             .unwrap_or(Category::Profile);
 
-        let mut mem = Memory::new(&fact.l0_abstract, category, MemoryType::Insight, tenant_id);
+        let source = fact.source_text.as_deref().unwrap_or(&fact.l0_abstract);
+
+        let mut mem = Memory::new(source, category, MemoryType::Insight, tenant_id);
         mem.l0_abstract = fact.l0_abstract.clone();
         mem.l1_overview = fact.l1_overview.clone();
         mem.l2_content = fact.l2_content.clone();
         mem.tags = fact.tags.clone();
 
-        let embeddings = self.embed.embed(std::slice::from_ref(&fact.l0_abstract)).await?;
+        let embeddings = self.embed.embed(std::slice::from_ref(&source.to_string())).await?;
         let vector = embeddings.first().map(|v| v.as_slice());
 
         self.store.create(&mem, vector).await?;
@@ -565,13 +607,14 @@ mod tests {
             l2_content: format!("Detail: {abstract_text}"),
             category: category.to_string(),
             tags: vec![],
+            source_text: None,
         }
     }
 
     #[tokio::test]
     async fn test_reconcile_empty_store() {
         let (store, _dir) = setup().await;
-        let llm = Arc::new(MockLlm::new("should not be called"));
+        let llm = Arc::new(MockLlm::new(r#"{"keep_indices": [0, 1]}"#));
         let embed = Arc::new(MockEmbed);
 
         let reconciler = Reconciler::new(llm, store.clone(), embed);

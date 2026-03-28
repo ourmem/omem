@@ -832,6 +832,8 @@ mod tests {
             embed: Arc::new(NoopEmbedder::new(1024)),
             llm: Arc::new(NoopLlm),
             config: OmemConfig::default(),
+            import_semaphore: Arc::new(tokio::sync::Semaphore::new(3)),
+            reconcile_semaphore: Arc::new(tokio::sync::Semaphore::new(1)),
         });
 
         (state, store_dir, space_dir, tenant_dir)

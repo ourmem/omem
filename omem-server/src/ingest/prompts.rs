@@ -148,12 +148,127 @@ Return ONLY valid JSON:
 {"decisions": [{"action": "CREATE", "fact_index": 0, "reason": "new info"}, {"action": "MERGE", "fact_index": 1, "match_index": 3, "merged_content": "combined text", "reason": "adds detail"}, {"action": "SKIP", "fact_index": 2, "match_index": 0, "reason": "duplicate"}, {"action": "SUPERSEDE", "fact_index": 3, "match_index": 1, "reason": "updated preference"}, {"action": "SUPPORT", "fact_index": 4, "match_index": 2, "context_label": "work", "reason": "reinforces existing"}, {"action": "CONTEXTUALIZE", "fact_index": 5, "match_index": 4, "context_label": "evening", "reason": "adds situational nuance"}, {"action": "CONTRADICT", "fact_index": 6, "match_index": 5, "reason": "directly contradicts"}]}
 "#;
 
+pub fn build_batch_dedup_prompt(facts: &[ExtractedFact]) -> (String, String) {
+    let mut facts_text = String::new();
+    for (i, fact) in facts.iter().enumerate() {
+        let display = fact
+            .source_text
+            .as_deref()
+            .map(|s| {
+                let truncated: String = s.chars().take(200).collect();
+                if s.chars().count() > 200 {
+                    format!("{truncated}...")
+                } else {
+                    truncated
+                }
+            })
+            .unwrap_or_else(|| fact.l0_abstract.clone());
+        facts_text.push_str(&format!("FACT[{}]: [{}] {}\n", i, fact.category, display));
+    }
+    (
+        BATCH_DEDUP_SYSTEM_PROMPT.to_string(),
+        format!("Deduplicate the following facts:\n\n{facts_text}"),
+    )
+}
+
+pub fn build_section_prompt(section_text: &str) -> (String, String) {
+    (
+        SECTION_SYSTEM_PROMPT.to_string(),
+        format!("Summarize the following section as a single memory:\n\n{section_text}"),
+    )
+}
+
+pub fn build_document_prompt(document_text: &str) -> (String, String) {
+    (
+        DOCUMENT_SYSTEM_PROMPT.to_string(),
+        format!(
+            "Summarize the following document as a single comprehensive memory:\n\n{document_text}"
+        ),
+    )
+}
+
+const BATCH_DEDUP_SYSTEM_PROMPT: &str = r#"You are a deduplication engine. Given a list of extracted facts, identify and remove duplicates or near-duplicates within the batch.
+
+## Rules
+
+1. Compare all facts pairwise.
+2. When two facts cover the same topic or convey the same meaning:
+   - Keep the MORE DETAILED or MORE SPECIFIC one.
+   - If they are equally detailed, keep the one with the lower index.
+3. If no duplicates are found, return ALL indices.
+4. Preserve the original language of each fact.
+5. Only remove true duplicates or highly overlapping facts. Different aspects of the same topic are NOT duplicates.
+
+## Output Format
+Return ONLY valid JSON:
+{"keep_indices": [0, 2, 3, 5]}
+
+The array should list the indices of facts to KEEP (not the ones to remove).
+If all facts are unique, return all indices: {"keep_indices": [0, 1, 2, ...]}
+"#;
+
+const SECTION_SYSTEM_PROMPT: &str = r#"You are a memory extraction engine. Your task is to create exactly ONE memory from the given text section.
+
+## Rules
+- Create exactly 1 memory that captures the section's key information.
+- **CRITICAL**: You MUST output in the SAME language as the input. Chinese input → Chinese output. English input → English output. NEVER translate.
+- Do NOT translate content to English. If the input is in Chinese, ALL fields (l0_abstract, l1_overview, l2_content) MUST be in Chinese.
+- Do NOT split into multiple facts — summarize as one cohesive memory.
+
+## Categories
+Classify the memory into exactly one category:
+- **profile**: Biographical or identity information.
+- **preferences**: Likes, dislikes, tool choices, style preferences.
+- **entities**: Persistent nouns (projects, tools, people, orgs) and their states.
+- **events**: Things that happened — milestones, incidents, decisions made.
+- **cases**: Problem→solution pairs, debugging stories, how-tos.
+- **patterns**: Reusable processes, workflows, conventions, templates.
+
+## Layered Storage
+- **l0_abstract**: A single sentence index entry. Brief enough to scan quickly.
+- **l1_overview**: A structured markdown summary in 2-4 lines. Includes key attributes.
+- **l2_content**: Full narrative preserving all relevant details, context, and nuance from the section.
+
+## Output Format
+Return ONLY valid JSON:
+{"memories": [{"l0_abstract":"...","l1_overview":"...","l2_content":"...","category":"...","tags":["..."]}]}
+"#;
+
+const DOCUMENT_SYSTEM_PROMPT: &str = r#"You are a memory extraction engine. Your task is to create exactly ONE comprehensive memory from the entire document.
+
+## Rules
+- Create exactly 1 memory that captures the document's most important information.
+- **CRITICAL**: You MUST output in the SAME language as the input. Chinese input → Chinese output. English input → English output. NEVER translate.
+- Do NOT translate content to English. If the input is in Chinese, ALL fields (l0_abstract, l1_overview, l2_content) MUST be in Chinese.
+- The l2_content should be a thorough summary covering all key points.
+- Do NOT split into multiple facts — produce one comprehensive memory.
+
+## Categories
+Classify the memory into exactly one category:
+- **profile**: Biographical or identity information.
+- **preferences**: Likes, dislikes, tool choices, style preferences.
+- **entities**: Persistent nouns (projects, tools, people, orgs) and their states.
+- **events**: Things that happened — milestones, incidents, decisions made.
+- **cases**: Problem→solution pairs, debugging stories, how-tos.
+- **patterns**: Reusable processes, workflows, conventions, templates.
+
+## Layered Storage
+- **l0_abstract**: A single sentence index entry. Brief enough to scan quickly.
+- **l1_overview**: A structured markdown summary in 3-5 lines covering the main topics.
+- **l2_content**: Comprehensive narrative covering all key information from the document.
+
+## Output Format
+Return ONLY valid JSON:
+{"memories": [{"l0_abstract":"...","l1_overview":"...","l2_content":"...","category":"...","tags":["..."]}]}
+"#;
+
 const BASE_SYSTEM_PROMPT: &str = r#"You are an information extraction engine. Your task is to extract distinct, atomic facts from the USER messages in a conversation.
 
 ## Rules
 - Extract facts ONLY from USER messages. Assistant messages provide context only.
 - Each fact must be atomic — one piece of information per fact.
-- Preserve the user's original language (e.g., Chinese input → Chinese facts).
+- **CRITICAL**: You MUST output in the SAME language as the input. Chinese input → Chinese facts. English input → English facts. NEVER translate.
+- Do NOT translate content to English. If the input is in Chinese, ALL fields (l0_abstract, l1_overview, l2_content) MUST be in Chinese.
 - Maximum 50 facts per extraction.
 
 ## Categories

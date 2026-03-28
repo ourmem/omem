@@ -72,6 +72,8 @@ async fn main() {
         embed,
         llm,
         config: config.clone(),
+        import_semaphore: Arc::new(tokio::sync::Semaphore::new(3)),
+        reconcile_semaphore: Arc::new(tokio::sync::Semaphore::new(1)),
     });
 
     let app = build_router(state);

@@ -74,6 +74,8 @@ mod tests {
             embed,
             llm,
             config: OmemConfig::default(),
+            import_semaphore: Arc::new(tokio::sync::Semaphore::new(3)),
+            reconcile_semaphore: Arc::new(tokio::sync::Semaphore::new(1)),
         });
 
         (build_router(state), dir)

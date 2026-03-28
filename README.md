@@ -94,6 +94,10 @@ Weibull decay model manages the memory lifecycle — core memories persist, peri
 | | Admission control | 5-dimension scoring gate (utility, confidence, novelty, recency, type prior) |
 | | Dual-stream write | Sync fast path (<50ms) + async LLM extraction |
 | | Post-import intelligence | Batch import → async LLM re-extraction + relation discovery |
+| | Adaptive import strategy | Auto/atomic/section/document — heuristic content type detection |
+| | Content fidelity | Original text preserved, dual-path search (vector + BM25 on source text) |
+| | Cross-reconcile | Discover relations between memories via vector similarity |
+| | Batch self-dedup | LLM deduplicates facts within same import batch |
 | | Privacy protection | `<private>` tag redaction before storage |
 | **Retrieval** | 11-stage pipeline | Vector + BM25 → RRF → reranker → decay → importance → MMR diversity |
 | | User Profile | Static facts + dynamic context, <100ms |

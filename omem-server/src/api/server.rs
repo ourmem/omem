@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use tokio::sync::Semaphore;
+
 use crate::config::OmemConfig;
 use crate::embed::EmbedService;
 use crate::llm::LlmService;
@@ -12,6 +14,8 @@ pub struct AppState {
     pub embed: Arc<dyn EmbedService>,
     pub llm: Arc<dyn LlmService>,
     pub config: OmemConfig,
+    pub import_semaphore: Arc<Semaphore>,
+    pub reconcile_semaphore: Arc<Semaphore>,
 }
 
 /// Map tenant_id to their personal Space ID.

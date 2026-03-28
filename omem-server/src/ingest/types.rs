@@ -7,6 +7,8 @@ pub struct ExtractedFact {
     pub l2_content: String,
     pub category: String,
     pub tags: Vec<String>,
+    #[serde(skip)]
+    pub source_text: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -31,6 +33,11 @@ pub struct ReconcileDecision {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReconcileResult {
     pub decisions: Vec<ReconcileDecision>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BatchDedupResult {
+    pub keep_indices: Vec<usize>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -40,6 +40,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/v1/imports/{id}", get(handlers::get_import))
         .route("/v1/imports/{id}/intelligence", post(handlers::trigger_intelligence))
         .route("/v1/imports/{id}/rollback", post(handlers::rollback_import))
+        .route("/v1/imports/cross-reconcile", post(handlers::cross_reconcile))
         .route(
             "/v1/connectors/github/connect",
             post(handlers::github_connect),

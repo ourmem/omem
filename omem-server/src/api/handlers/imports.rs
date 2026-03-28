@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::api::server::{personal_space_id, AppState};
 use crate::domain::error::OmemError;
+use crate::domain::relation::{MemoryRelation, RelationType};
 use crate::domain::tenant::AuthInfo;
 use crate::ingest::intelligence::IntelligenceTask;
 use crate::ingest::session::{SessionMessage, SessionStore};
@@ -36,6 +37,7 @@ pub async fn create_import(
     let mut session_id: Option<String> = None;
     let mut space_id: Option<String> = None;
     let mut post_process = true;
+    let mut strategy = String::from("auto");
 
     while let Some(field) = multipart
         .next_field()
@@ -91,6 +93,12 @@ pub async fn create_import(
                     .map_err(|e| OmemError::Validation(format!("{e}")))?;
                 post_process = val != "false" && val != "0";
             }
+            "strategy" => {
+                strategy = field
+                    .text()
+                    .await
+                    .map_err(|e| OmemError::Validation(format!("{e}")))?;
+            }
             _ => {}
         }
     }
@@ -103,6 +111,13 @@ pub async fn create_import(
     if !valid_types.contains(&file_type.as_str()) {
         return Err(OmemError::Validation(format!(
             "unsupported file_type: {file_type}. Use: memory, session, markdown, jsonl"
+        )));
+    }
+
+    let valid_strategies = ["auto", "atomic", "section", "document"];
+    if !valid_strategies.contains(&strategy.as_str()) {
+        return Err(OmemError::Validation(format!(
+            "unsupported strategy: {strategy}. Use: auto, atomic, section, document"
         )));
     }
 
@@ -157,6 +172,7 @@ pub async fn create_import(
         agent_id: agent_id.clone(),
         space_id: target_space.clone(),
         post_process,
+        strategy: strategy.clone(),
         storage_total: 1,
         storage_stored: 1,
         storage_skipped: 0,
@@ -195,16 +211,22 @@ pub async fn create_import(
         let bg_space_store = state.space_store.clone();
         let bg_task_id = task_id;
         let bg_tenant_id = auth.tenant_id.clone();
+        let bg_strategy = strategy;
+        let sem = state.import_semaphore.clone();
+        let reconcile_sem = state.reconcile_semaphore.clone();
 
         tokio::spawn(async move {
+            let _permit = sem.acquire_owned().await.expect("semaphore");
             let intelligence = IntelligenceTask::new(
                 bg_store,
                 bg_session_store,
                 bg_embed,
                 bg_llm,
                 bg_space_store,
+                reconcile_sem,
                 bg_task_id.clone(),
                 bg_tenant_id,
+                bg_strategy,
             );
             intelligence.run().await;
         });
@@ -281,21 +303,91 @@ pub async fn trigger_intelligence(
     let bg_space_store = state.space_store.clone();
     let bg_task_id = task.id.clone();
     let bg_tenant_id = auth.tenant_id.clone();
+    let bg_strategy = task.strategy.clone();
+    let sem = state.import_semaphore.clone();
+    let reconcile_sem = state.reconcile_semaphore.clone();
 
     tokio::spawn(async move {
+        let _permit = sem.acquire_owned().await.expect("semaphore");
         let intelligence = IntelligenceTask::new(
             store,
             session_store,
             bg_embed,
             bg_llm,
             bg_space_store,
+            reconcile_sem,
             bg_task_id.clone(),
             bg_tenant_id,
+            bg_strategy,
         );
         intelligence.run().await;
     });
 
     Ok(Json(task))
+}
+
+pub async fn cross_reconcile(
+    State(state): State<Arc<AppState>>,
+    Extension(auth): Extension<AuthInfo>,
+) -> Result<Json<serde_json::Value>, OmemError> {
+    let space_id = personal_space_id(&auth.tenant_id);
+    let store = state.store_manager.get_store(&space_id).await?;
+
+    let all_memories = store.list_all_active().await?;
+    let mut relations_created = 0usize;
+    let scanned = all_memories.len();
+
+    for memory in &all_memories {
+        let text = if memory.l0_abstract.is_empty() {
+            &memory.content
+        } else {
+            &memory.l0_abstract
+        };
+        if text.is_empty() {
+            continue;
+        }
+
+        let texts = vec![text.clone()];
+        let embeddings = state.embed.embed(&texts).await?;
+        let query_vec = match embeddings.first() {
+            Some(v) => v,
+            None => continue,
+        };
+
+        // limit=6 to account for self appearing in results
+        let similar = store.vector_search(query_vec, 6, 0.85, None, None).await?;
+
+        for (candidate, score) in &similar {
+            if candidate.id == memory.id {
+                continue;
+            }
+
+            // Re-fetch to see relations added in prior iterations of this loop
+            let mut src = store
+                .get_by_id(&memory.id)
+                .await?
+                .ok_or_else(|| OmemError::NotFound(memory.id.clone()))?;
+
+            if src.relations.iter().any(|r| r.target_id == candidate.id) {
+                continue;
+            }
+
+            src.relations.push(MemoryRelation {
+                relation_type: RelationType::Supports,
+                target_id: candidate.id.clone(),
+                context_label: Some(format!("similarity:{:.2}", score)),
+            });
+            src.updated_at = chrono::Utc::now().to_rfc3339();
+            store.update(&src, None).await?;
+
+            relations_created += 1;
+        }
+    }
+
+    Ok(Json(serde_json::json!({
+        "relations_created": relations_created,
+        "memories_scanned": scanned,
+    })))
 }
 
 fn sha256_hex(content: &str) -> String {

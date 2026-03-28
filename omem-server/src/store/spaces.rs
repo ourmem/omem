@@ -24,6 +24,9 @@ pub struct ImportTaskRecord {
     pub space_id: String,
     pub post_process: bool,
 
+    #[serde(default = "default_strategy")]
+    pub strategy: String,
+
     // Stage 1: Storage
     pub storage_total: usize,
     pub storage_stored: usize,
@@ -48,6 +51,10 @@ pub struct ImportTaskRecord {
 
 pub struct SpaceStore {
     spaces_db: Connection,
+}
+
+fn default_strategy() -> String {
+    "auto".to_string()
 }
 
 impl SpaceStore {
