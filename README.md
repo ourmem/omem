@@ -80,6 +80,8 @@ Weibull decay model manages the memory lifecycle — core memories persist, peri
 </tr>
 </table>
 
+📖 **[Memory Pipeline Architecture](docs/PIPELINE.md)** — Technical deep-dive into how ourmem stores, retrieves, and evolves memories.
+
 ## Feature Overview
 
 | Category | Feature | Details |
