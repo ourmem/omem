@@ -1,5 +1,6 @@
 services:
   omem-server:
+    image: ghcr.io/ourmem/omem-server:latest
     build: .
     ports:
       - "8080:8080"

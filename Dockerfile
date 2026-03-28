@@ -1,7 +1,7 @@
 # ============================================================
 # Stage 1: Build
 # ============================================================
-FROM rust:1.84-slim-bookworm AS builder
+FROM rust:1.94-slim-bookworm AS builder
 
 ARG TARGETARCH
 
@@ -51,7 +51,7 @@ RUN apt-get update && apt-get install -y \
 COPY --from=builder /app/target/release/omem-server /usr/local/bin/
 
 VOLUME ["/data"]
-ENV OMEM_DATA_DIR=/data
+WORKDIR /data
 ENV RUST_LOG=info
 
 EXPOSE 8080
