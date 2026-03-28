@@ -1,6 +1,6 @@
 {
   "name": "@ourmem/mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "ourmem MCP Server — persistent memory for Cursor, VS Code, Claude Desktop, and any MCP client",
   "type": "module",
   "bin": { "ourmem-mcp": "src/index.ts" },
@@ -10,7 +10,7 @@
   "homepage": "https://ourmem.ai",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yhyyz/omem.git",
+    "url": "https://github.com/ourmem/omem.git",
     "directory": "plugins/mcp"
   },
   "dependencies": {

@@ -1,6 +1,6 @@
 {
-  "name": "omem",
-  "description": "Persistent memory for Claude Code — powered by omem",
+  "name": "ourmem",
+  "description": "Persistent memory for Claude Code — powered by ourmem",
   "hooks": "hooks/",
   "skills": "skills/"
 }
