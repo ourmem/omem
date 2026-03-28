@@ -101,7 +101,7 @@ Add to your MCP config:
   "mcpServers": {
     "ourmem": {
       "command": "npx",
-      "args": ["@ourmem/mcp"],
+      "args": ["-y", "@ourmem/mcp"],
       "env": {
         "OMEM_API_URL": "https://api.ourmem.ai",
         "OMEM_API_KEY": "YOUR_API_KEY"

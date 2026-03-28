@@ -196,7 +196,7 @@ curl -sX POST https://api.ourmem.ai/v1/tenants \
   "mcpServers": {
     "ourmem": {
       "command": "npx",
-      "args": ["@ourmem/mcp"],
+      "args": ["-y", "@ourmem/mcp"],
       "env": {
         "OMEM_API_URL": "https://api.ourmem.ai",
         "OMEM_API_KEY": "your-api-key"

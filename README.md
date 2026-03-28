@@ -214,7 +214,7 @@ Save the returned `api_key` — this reconnects you to the same memory from any 
   "mcpServers": {
     "ourmem": {
       "command": "npx",
-      "args": ["@ourmem/mcp"],
+      "args": ["-y", "@ourmem/mcp"],
       "env": {
         "OMEM_API_URL": "https://api.ourmem.ai",
         "OMEM_API_KEY": "your-api-key"
