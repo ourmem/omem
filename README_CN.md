@@ -243,6 +243,8 @@ curl -sX POST "$OMEM_API_URL/v1/memories" \
 
 完整 API（35 端点）：[docs/API.md](docs/API.md)
 
+📖 **[记忆管线架构](docs/PIPELINE.md)** — 存储、检索和插件集成流程
+
 ## 许可证
 
 Apache-2.0

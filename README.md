@@ -353,6 +353,7 @@ Full API reference (35 endpoints): [docs/API.md](docs/API.md)
 | Document | Description |
 |----------|-------------|
 | [docs/API.md](docs/API.md) | Complete REST API reference |
+| [docs/PIPELINE.md](docs/PIPELINE.md) | Memory pipeline architecture — storage, retrieval, and plugin integration flows |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Docker & AWS deployment guide |
 | [docs/PLUGINS.md](docs/PLUGINS.md) | Plugin installation for all 4 platforms |
 | [skills/ourmem/SKILL.md](skills/ourmem/SKILL.md) | AI agent onboarding skill |
