@@ -69,14 +69,19 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           .string()
           .optional()
           .describe("Scope filter for the search"),
+        tags: z
+          .array(z.string())
+          .optional()
+          .describe("Filter by tags"),
       },
     },
-    async ({ query, limit, scope }) => {
+    async ({ query, limit, scope, tags }) => {
       try {
         const results = await client.searchMemories(
           query,
           limit ?? 10,
           scope,
+          tags,
         );
 
         if (results.length === 0) {
@@ -267,6 +272,146 @@ export function registerTools(server: McpServer, client: OmemClient): void {
             {
               type: "text" as const,
               text: `Failed to get profile: ${(err as Error).message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "memory_list",
+    {
+      title: "List Recent Memories",
+      description:
+        "List the most recent memories. Use to browse what's been remembered without a search query.",
+      inputSchema: {
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .optional()
+          .describe("Max memories to return (default: 20)"),
+      },
+    },
+    async ({ limit }) => {
+      try {
+        const memories = await client.listRecent(limit ?? 20);
+        if (memories.length === 0) {
+          return {
+            content: [
+              { type: "text" as const, text: "No memories stored yet." },
+            ],
+          };
+        }
+        const formatted = memories
+          .map((m, i) => {
+            const tags =
+              m.tags.length > 0 ? ` [${m.tags.join(", ")}]` : "";
+            return `${i + 1}. (${m.category})${tags} ${m.content.slice(0, 120)}`;
+          })
+          .join("\n");
+        return {
+          content: [{ type: "text" as const, text: formatted }],
+        };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Failed to list memories: ${(err as Error).message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "memory_ingest",
+    {
+      title: "Ingest Conversation",
+      description:
+        "Ingest conversation messages for intelligent extraction. The system extracts atomic facts, deduplicates, and reconciles with existing memories.",
+      inputSchema: {
+        messages: z
+          .array(
+            z.object({
+              role: z
+                .string()
+                .describe("Message role: user, assistant, or system"),
+              content: z.string().describe("Message content"),
+            }),
+          )
+          .describe("Conversation messages to ingest"),
+        mode: z
+          .enum(["smart", "raw"])
+          .optional()
+          .describe(
+            "Extraction mode: 'smart' (LLM extraction, default) or 'raw' (store as-is)",
+          ),
+        tags: z
+          .array(z.string())
+          .optional()
+          .describe("Tags to apply to extracted memories"),
+      },
+    },
+    async ({ messages, mode, tags }) => {
+      try {
+        const result = await client.ingestMessages(messages, {
+          mode: mode ?? "smart",
+          tags,
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Ingestion complete: ${JSON.stringify(result)}`,
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Ingestion failed: ${(err as Error).message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "memory_stats",
+    {
+      title: "Memory Statistics",
+      description:
+        "Get statistics about stored memories — counts by category, type, tier, and timeline.",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const stats = await client.getStats();
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(stats, null, 2),
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Failed to get stats: ${(err as Error).message}`,
             },
           ],
           isError: true,

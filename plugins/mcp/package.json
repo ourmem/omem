@@ -1,9 +1,17 @@
 {
   "name": "@ourmem/mcp",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "ourmem MCP Server — persistent memory for Cursor, VS Code, Claude Desktop, and any MCP client",
   "type": "module",
-  "bin": { "ourmem-mcp": "src/index.ts" },
+  "main": "dist/index.js",
+  "bin": {
+    "ourmem-mcp": "dist/index.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
   "keywords": ["mcp", "memory", "ai-agent", "persistent-memory", "ourmem", "model-context-protocol"],
   "author": "ourmem",
   "license": "Apache-2.0",
@@ -14,6 +22,11 @@
     "directory": "plugins/mcp"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
   }
 }

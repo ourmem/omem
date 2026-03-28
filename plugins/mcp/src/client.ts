@@ -82,9 +82,11 @@ export class OmemClient {
     query: string,
     limit = 10,
     scope?: string,
+    tags?: string[],
   ): Promise<SearchResult[]> {
     const params = new URLSearchParams({ q: query, limit: String(limit) });
     if (scope) params.set("scope", scope);
+    if (tags && tags.length > 0) params.set("tags", tags.join(","));
     const res = await this.request<SearchResponse>(
       `/v1/memories/search?${params}`,
     );
@@ -119,6 +121,33 @@ export class OmemClient {
 
   async getProfile(): Promise<unknown> {
     return this.request("/v1/profile");
+  }
+
+  async listRecent(limit = 20): Promise<MemoryDto[]> {
+    const res = await this.request<{ memories: MemoryDto[] }>(
+      `/v1/memories?limit=${limit}&offset=0`,
+    );
+    return res?.memories ?? [];
+  }
+
+  async ingestMessages(
+    messages: Array<{ role: string; content: string }>,
+    opts: { mode?: string; agentId?: string; sessionId?: string; tags?: string[] } = {},
+  ): Promise<unknown> {
+    return this.request("/v1/memories", {
+      method: "POST",
+      body: JSON.stringify({
+        messages,
+        mode: opts.mode ?? "smart",
+        agent_id: opts.agentId,
+        session_id: opts.sessionId,
+        tags: opts.tags,
+      }),
+    });
+  }
+
+  async getStats(): Promise<unknown> {
+    return this.request("/v1/stats");
   }
 }
 
