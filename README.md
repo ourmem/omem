@@ -17,13 +17,14 @@
 
 ## The Problem
 
-Your AI agents have amnesia.
+Your AI agents have amnesia — and they work alone.
 
 - 🧠 **Amnesia** — every session starts from zero. Preferences, decisions, context — all gone.
 - 🏝️ **Silos** — your Coder agent can't access what your Writer agent learned.
 - 📁 **Local lock-in** — memory tied to one machine. Switch devices, lose everything.
-- 🚫 **No sharing** — team members can't benefit from each other's agent knowledge.
+- 🚫 **No sharing** — team agents can't share what they know. Every agent re-discovers the same things.
 - 🔍 **Dumb recall** — keyword match only. No semantic understanding, no relevance ranking.
+- 🧩 **No collective intelligence** — even when agents work on the same team, there's no shared knowledge layer.
 
 **ourmem fixes all of this.**
 
@@ -76,6 +77,33 @@ Weibull decay model manages the memory lifecycle — core memories persist, peri
 </td>
 </tr>
 </table>
+
+## Feature Overview
+
+| Category | Feature | Details |
+|----------|---------|---------|
+| **Platforms** | 4 platforms | OpenCode, Claude Code, OpenClaw, MCP Server |
+| **Sharing** | Space-based sharing | Personal / Team / Organization with provenance |
+| | Provenance tracking | Every shared memory carries full lineage |
+| | Quality-gated auto-sharing | Rules filter by importance, category, tags |
+| | Cross-space search | Search across all accessible spaces at once |
+| **Ingestion** | Smart dedup | 7 decisions: CREATE, MERGE, SKIP, SUPERSEDE, SUPPORT, CONTEXTUALIZE, CONTRADICT |
+| | Noise filter | Regex + vector prototypes + feedback learning |
+| | Admission control | 5-dimension scoring gate (utility, confidence, novelty, recency, type prior) |
+| | Dual-stream write | Sync fast path (<50ms) + async LLM extraction |
+| | Privacy protection | `<private>` tag redaction before storage |
+| **Retrieval** | 11-stage pipeline | Vector + BM25 → RRF → reranker → decay → importance → MMR diversity |
+| | User Profile | Static facts + dynamic context, <100ms |
+| | Retrieval trace | Per-stage explainability (input/output/score/duration) |
+| **Lifecycle** | Weibull decay | Tier-specific β (Core=0.8, Working=1.0, Peripheral=1.3) |
+| | Three-tier promotion | Peripheral ↔ Working ↔ Core with access-based promotion |
+| | Auto-forgetting | TTL detection for time-sensitive info ("tomorrow", "next week") |
+| **Multi-modal** | File processing | PDF, image OCR, video transcription, code AST chunking |
+| | GitHub connector | Real-time webhook sync for code, issues, PRs |
+| **Deploy** | Open source | Apache-2.0 (plugins + docs) |
+| | Self-hostable | Single binary, Docker one-liner, ~$5/month |
+| | musl static build | Zero-dependency binary for any Linux x86_64 |
+| | Hosted option | api.ourmem.ai — nothing to deploy |
 
 ## From Isolated Agents to Collective Intelligence
 
