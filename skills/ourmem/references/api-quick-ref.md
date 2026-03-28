@@ -160,3 +160,29 @@ curl -s $API_URL/health
 ## Full API Documentation
 
 For complete endpoint details, request/response schemas, and error codes, READ `docs/API.md`.
+
+## Delete
+
+```bash
+# Batch delete by IDs
+curl -sX POST $API_URL/v1/memories/batch-delete \
+  -H "Content-Type: application/json" -H "X-API-Key: $KEY" \
+  -d '{"memory_ids": ["id1", "id2"]}'
+
+# Batch delete by filter (preview)
+curl -sX POST $API_URL/v1/memories/batch-delete \
+  -H "Content-Type: application/json" -H "X-API-Key: $KEY" \
+  -d '{"filter": {"source": "import"}, "confirm": false}'
+
+# Batch delete by filter (execute)
+curl -sX POST $API_URL/v1/memories/batch-delete \
+  -H "Content-Type: application/json" -H "X-API-Key: $KEY" \
+  -d '{"filter": {"source": "import"}, "confirm": true}'
+
+# Delete all memories (requires confirmation header)
+curl -sX DELETE $API_URL/v1/memories/all \
+  -H "X-API-Key: $KEY" -H "X-Confirm: delete-all"
+
+# Rollback an import
+curl -sX POST $API_URL/v1/imports/IMPORT_ID/rollback -H "X-API-Key: $KEY"
+```

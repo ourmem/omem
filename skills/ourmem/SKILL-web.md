@@ -516,6 +516,9 @@ curl -sX POST https://api.ourmem.ai/v1/memories \
 | GET | `/v1/memories/:id` | Get single memory |
 | PUT | `/v1/memories/:id` | Update memory |
 | DELETE | `/v1/memories/:id` | Soft delete |
+| POST | `/v1/memories/batch-delete` | Batch delete by IDs or filter |
+| DELETE | `/v1/memories/all` | Clear all memories (requires X-Confirm header) |
+| POST | `/v1/imports/{id}/rollback` | Rollback an import (delete memories + sessions) |
 | GET | `/v1/profile` | User profile (static + dynamic) |
 | **Spaces** | | |
 | POST | `/v1/spaces` | Create shared space |
