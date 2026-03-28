@@ -161,6 +161,27 @@ curl -s $API_URL/health
 
 For complete endpoint details, request/response schemas, and error codes, READ `docs/API.md`.
 
+## Imports
+
+```bash
+# Batch import a file (with adaptive strategy)
+curl -sX POST $API_URL/v1/imports -H "X-API-Key: $KEY" \
+  -F "file=@memory.json" -F "file_type=memory" -F "strategy=auto"
+# strategy: auto (default) | atomic | section | document
+
+# Check import progress
+curl -s "$API_URL/v1/imports/IMPORT_ID" -H "X-API-Key: $KEY"
+
+# Trigger intelligence on past import
+curl -sX POST "$API_URL/v1/imports/IMPORT_ID/intelligence" -H "X-API-Key: $KEY"
+
+# Cross-reconcile (discover relations via vector similarity)
+curl -sX POST $API_URL/v1/imports/cross-reconcile -H "X-API-Key: $KEY"
+
+# Rollback an import
+curl -sX POST $API_URL/v1/imports/IMPORT_ID/rollback -H "X-API-Key: $KEY"
+```
+
 ## Delete
 
 ```bash
@@ -182,7 +203,4 @@ curl -sX POST $API_URL/v1/memories/batch-delete \
 # Delete all memories (requires confirmation header)
 curl -sX DELETE $API_URL/v1/memories/all \
   -H "X-API-Key: $KEY" -H "X-Confirm: delete-all"
-
-# Rollback an import
-curl -sX POST $API_URL/v1/imports/IMPORT_ID/rollback -H "X-API-Key: $KEY"
 ```

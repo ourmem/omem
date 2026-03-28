@@ -286,6 +286,23 @@ curl -sX POST "$OMEM_API_URL/v1/memories" \
 curl -sX POST "$OMEM_API_URL/v1/files" -H "X-API-Key: $OMEM_API_KEY" -F "file=@doc.pdf"
 ```
 
+**Batch import** (with adaptive strategy):
+
+```bash
+curl -sX POST "$OMEM_API_URL/v1/imports" -H "X-API-Key: $OMEM_API_KEY" \
+  -F "file=@memory.json" -F "file_type=memory" -F "strategy=auto"
+```
+
+Strategy parameter controls chunking: `auto` (default, heuristic detection), `atomic` (short facts, minimal LLM), `section` (split by headings), `document` (entire file as one chunk).
+
+The `content` field preserves original source text — embeddings and BM25 index are built from original text for content fidelity and language preservation.
+
+**Cross-reconcile** (discover relations via vector similarity):
+
+```bash
+curl -sX POST "$OMEM_API_URL/v1/imports/cross-reconcile" -H "X-API-Key: $OMEM_API_KEY"
+```
+
 **Direct fact:**
 
 ```bash

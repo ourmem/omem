@@ -2109,6 +2109,16 @@ curl -X POST http://localhost:8080/v1/files \
 | session_id | string | No | 关联的 Session ID（file_type=session 时有用） |
 | space_id | string | No | 目标 Space ID（默认 personal space） |
 | post_process | string | No | `true`（默认）触发后台智能化（LLM 重新提取 + 关系发现），`false` 仅存储 |
+| strategy | string | No | 导入策略。`"auto"`（默认）自动检测内容类型选择最佳策略；`"atomic"` 强制提取原子事实（适合对话日志）；`"section"` 按 Markdown 标题分段，每段一条记忆（适合结构化文档）；`"document"` 整个文件作为一条记忆（适合短笔记） |
+
+**strategy 自动检测逻辑**（当 strategy=auto 时）：
+
+| 内容特征 | 检测结果 | 提取方式 |
+|---------|---------|---------|
+| 包含 `user:`/`assistant:` 对话模式 | 对话 | 提取原子事实 |
+| 文件 > 80K 字符 | 大文档 | 分块 + 原子提取 |
+| 包含 `# ` 或 `## ` Markdown 标题 | 结构化文档 | 按标题分段，每段一条记忆 |
+| < 500 词，无标题 | 短笔记 | 整文件一条记忆 |
 
 **Response** `200 OK`:
 
@@ -2117,6 +2127,7 @@ curl -X POST http://localhost:8080/v1/files \
   "id": "985ce9b7-7936-4726-805f-7abe19ba26e5",
   "status": "completed",
   "file_type": "memory",
+  "strategy": "auto",
   "filename": "memories.json",
   "agent_id": "coder",
   "session_id": null,
@@ -2149,11 +2160,18 @@ curl -X POST http://localhost:8080/v1/imports \
   -F "file_type=session" \
   -F "session_id=ses-001"
 
-# 导入 Markdown
+# 导入 Markdown（自动检测策略）
 curl -X POST http://localhost:8080/v1/imports \
   -H "X-API-Key: YOUR_API_KEY" \
-  -F "file=@MEMORY.md" \
+  -F "file=@notes.md" \
   -F "file_type=markdown"
+
+# 强制按段落导入（适合结构化文档）
+curl -X POST http://localhost:8080/v1/imports \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -F "file=@architecture.md" \
+  -F "file_type=markdown" \
+  -F "strategy=section"
 ```
 
 ### GET /v1/imports
@@ -2202,6 +2220,32 @@ curl -X POST http://localhost:8080/v1/imports \
 
 ```bash
 curl -X POST http://localhost:8080/v1/imports/IMPORT_ID/intelligence \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+---
+
+### POST /v1/imports/cross-reconcile
+
+跨记忆关系发现 — 使用向量相似度扫描所有活跃记忆，发现相似对（余弦相似度 > 0.85），并创建双向 `supports` 关系。
+
+**认证**: 需要 `X-API-Key`
+
+**使用场景**: 批量导入文件后，运行此接口发现跨记忆关系（单个文件导入时的 reconciliation 无法捕获的跨文件关系）。
+
+**Response** `200 OK`:
+
+```json
+{
+  "relations_created": 5,
+  "memories_scanned": 48
+}
+```
+
+**curl 示例**:
+
+```bash
+curl -X POST http://localhost:8080/v1/imports/cross-reconcile \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 

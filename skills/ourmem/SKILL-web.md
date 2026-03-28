@@ -422,16 +422,38 @@ curl -sX POST https://api.ourmem.ai/v1/imports \
   -H "X-API-Key: YOUR_API_KEY" \
   -F "file=@memory.json" \
   -F "file_type=memory" \
-  -F "agent_id=coder"
+  -F "agent_id=coder" \
+  -F "strategy=auto"
 ```
 
+**Strategy parameter** controls how content is chunked before LLM extraction:
+
+| Strategy | When auto-detected | Behavior |
+|----------|-------------------|----------|
+| `auto` (default) | — | Heuristic detection based on content type |
+| `atomic` | Short JSON facts, key-value pairs | Each item = one memory, minimal LLM processing |
+| `section` | Markdown with headings, structured docs | Split by sections (headings/paragraphs), LLM extracts per section |
+| `document` | Long prose, conversations, session logs | Entire file as one chunk, LLM extracts all facts holistically |
+
 By default, `post_process=true`: after storage completes, a background task runs LLM re-extraction (same as Smart Ingest) + reconciliation to discover relations. The imported fragments are merged into large chunks, LLM extracts atomic facts with proper categories and L0/L1/L2 summaries, then Reconciler discovers SUPPORT/CONTEXTUALIZE/CONTRADICT/SUPERSEDE relations.
+
+The `content` field preserves original source text — vector embeddings and BM25 index are built from the original text, ensuring content fidelity and language preservation (e.g., Chinese input stays Chinese).
+
+When the database is empty, batch self-dedup kicks in: the LLM deduplicates facts within the same import batch to avoid redundancy. Reconciliation runs serially (semaphore=1) to prevent race conditions, while extraction runs in parallel (semaphore=3) for throughput.
 
 To skip intelligence processing: add `-F "post_process=false"`.
 
 Supported `file_type`: `memory` (JSON array), `session` (JSON/JSONL messages), `markdown` (split by paragraphs), `jsonl` (one JSON per line).
 
-Optional fields: `agent_id`, `session_id`, `space_id` (defaults to personal space), `post_process` (default true).
+Optional fields: `agent_id`, `session_id`, `space_id` (defaults to personal space), `post_process` (default true), `strategy` (default auto: auto/atomic/section/document).
+
+**Cross-reconcile (discover relations via vector similarity):**
+
+```bash
+curl -sX POST "https://api.ourmem.ai/v1/imports/cross-reconcile" -H "X-API-Key: YOUR_API_KEY"
+```
+
+Scans all memories and discovers SUPPORT/CONTEXTUALIZE/CONTRADICT/SUPERSEDE relations between them using vector similarity. Useful after multiple imports to connect related memories across batches.
 
 **Check import progress:**
 
@@ -519,6 +541,10 @@ curl -sX POST https://api.ourmem.ai/v1/memories \
 | POST | `/v1/memories/batch-delete` | Batch delete by IDs or filter |
 | DELETE | `/v1/memories/all` | Clear all memories (requires X-Confirm header) |
 | POST | `/v1/imports/{id}/rollback` | Rollback an import (delete memories + sessions) |
+| POST | `/v1/imports` | Batch import file (strategy=auto\|atomic\|section\|document) |
+| GET | `/v1/imports/{id}` | Check import progress |
+| POST | `/v1/imports/{id}/intelligence` | Trigger intelligence on past import |
+| POST | `/v1/imports/cross-reconcile` | Discover relations via vector similarity |
 | GET | `/v1/profile` | User profile (static + dynamic) |
 | **Spaces** | | |
 | POST | `/v1/spaces` | Create shared space |
