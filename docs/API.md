@@ -2004,6 +2004,7 @@ curl -X POST http://localhost:8080/v1/files \
 | agent_id | string | No | 关联的 Agent ID |
 | session_id | string | No | 关联的 Session ID（file_type=session 时有用） |
 | space_id | string | No | 目标 Space ID（默认 personal space） |
+| post_process | string | No | `true`（默认）触发后台智能化（LLM 重新提取 + 关系发现），`false` 仅存储 |
 
 **Response** `200 OK`:
 
@@ -2068,11 +2069,37 @@ curl -X POST http://localhost:8080/v1/imports \
 
 ### GET /v1/imports/{id}
 
-获取单个导入任务详情
+获取单个导入任务详情（含各 Phase 进度）
 
 **认证**: 需要 `X-API-Key`
 
-**Response**: 返回 ImportTask 对象或 404
+**Response**: 返回 ImportTask 对象（含 extraction/reconcile Phase 状态）或 404
+
+### POST /v1/imports/{id}/intelligence
+
+手动触发导入后智能化（对已完成的导入重新运行 LLM 提取 + 关系发现）
+
+**认证**: 需要 `X-API-Key`
+
+**说明**: 将导入的碎片记忆合并为大块（~80K 字符），用 LLM 重新提取原子事实（和 Smart Ingest 相同流程），然后通过 Reconciler 发现记忆间关系。原始碎片归档，新原子事实替代。
+
+**Response** `200 OK`:
+
+```json
+{
+  "id": "import-xxx",
+  "status": "processing",
+  "extraction_status": "running",
+  "reconcile_status": "pending"
+}
+```
+
+**curl 示例**:
+
+```bash
+curl -X POST http://localhost:8080/v1/imports/IMPORT_ID/intelligence \
+  -H "X-API-Key: YOUR_API_KEY"
+```
 
 ---
 

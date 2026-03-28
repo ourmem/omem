@@ -415,7 +415,7 @@ When the user says "import memories to ourmem", scan their workspace for existin
 
 ### Import API
 
-**Batch import a file:**
+**Batch import a file (with auto intelligence):**
 
 ```bash
 curl -sX POST https://api.ourmem.ai/v1/imports \
@@ -425,9 +425,27 @@ curl -sX POST https://api.ourmem.ai/v1/imports \
   -F "agent_id=coder"
 ```
 
+By default, `post_process=true`: after storage completes, a background task runs LLM re-extraction (same as Smart Ingest) + reconciliation to discover relations. The imported fragments are merged into large chunks, LLM extracts atomic facts with proper categories and L0/L1/L2 summaries, then Reconciler discovers SUPPORT/CONTEXTUALIZE/CONTRADICT/SUPERSEDE relations.
+
+To skip intelligence processing: add `-F "post_process=false"`.
+
 Supported `file_type`: `memory` (JSON array), `session` (JSON/JSONL messages), `markdown` (split by paragraphs), `jsonl` (one JSON per line).
 
-Optional fields: `agent_id`, `session_id`, `space_id` (defaults to personal space).
+Optional fields: `agent_id`, `session_id`, `space_id` (defaults to personal space), `post_process` (default true).
+
+**Check import progress:**
+
+```bash
+curl -s "https://api.ourmem.ai/v1/imports/IMPORT_ID" -H "X-API-Key: YOUR_API_KEY"
+```
+
+Returns phase-by-phase progress: storage → extraction → reconciliation.
+
+**Manually trigger intelligence on a past import:**
+
+```bash
+curl -sX POST "https://api.ourmem.ai/v1/imports/IMPORT_ID/intelligence" -H "X-API-Key: YOUR_API_KEY"
+```
 
 Response:
 
