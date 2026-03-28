@@ -1987,6 +1987,95 @@ curl -X POST http://localhost:8080/v1/files \
 
 ---
 
+## 七-B、批量导入
+
+### POST /v1/imports
+
+批量导入记忆文件（支持 memory/session/markdown/jsonl 格式）
+
+**认证**: 需要 `X-API-Key`
+
+**Request**: `multipart/form-data`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| file | file | Yes | 要导入的文件 |
+| file_type | string | Yes | `memory`（JSON数组）、`session`（消息JSON/JSONL）、`markdown`（按段落分割）、`jsonl`（逐行JSON） |
+| agent_id | string | No | 关联的 Agent ID |
+| session_id | string | No | 关联的 Session ID（file_type=session 时有用） |
+| space_id | string | No | 目标 Space ID（默认 personal space） |
+
+**Response** `200 OK`:
+
+```json
+{
+  "id": "985ce9b7-7936-4726-805f-7abe19ba26e5",
+  "status": "completed",
+  "file_type": "memory",
+  "filename": "memories.json",
+  "agent_id": "coder",
+  "session_id": null,
+  "space_id": "personal/550e8400-e29b-41d4-a716-446655440000",
+  "total_items": 15,
+  "imported": 13,
+  "skipped": 2,
+  "errors": [],
+  "created_at": "2026-03-28T10:00:00Z",
+  "completed_at": "2026-03-28T10:00:05Z"
+}
+```
+
+**status 值**: `completed`（全部成功）、`partial`（部分成功）、`failed`（全部失败）
+
+**curl 示例**:
+
+```bash
+# 导入 memory JSON
+curl -X POST http://localhost:8080/v1/imports \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -F "file=@memories.json" \
+  -F "file_type=memory" \
+  -F "agent_id=coder"
+
+# 导入 session JSONL
+curl -X POST http://localhost:8080/v1/imports \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -F "file=@session.jsonl" \
+  -F "file_type=session" \
+  -F "session_id=ses-001"
+
+# 导入 Markdown
+curl -X POST http://localhost:8080/v1/imports \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -F "file=@MEMORY.md" \
+  -F "file_type=markdown"
+```
+
+### GET /v1/imports
+
+列出导入任务
+
+**认证**: 需要 `X-API-Key`
+
+**Response** `200 OK`:
+
+```json
+{
+  "imports": [],
+  "total": 0
+}
+```
+
+### GET /v1/imports/{id}
+
+获取单个导入任务详情
+
+**认证**: 需要 `X-API-Key`
+
+**Response**: 返回 ImportTask 对象或 404
+
+---
+
 ## 八、GitHub 连接器
 
 ### POST /v1/connectors/github/webhook
