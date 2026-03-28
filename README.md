@@ -32,6 +32,8 @@ Your AI agents have amnesia — and they work alone.
 
 ourmem gives AI agents shared persistent memory — across sessions, devices, agents, and teams. One API key reconnects everything.
 
+🌐 **Website:** [ourmem.ai](https://ourmem.ai)
+
 <table>
 <tr>
 <td width="50%" valign="top">
@@ -140,9 +142,37 @@ Your AI Agent (OpenCode / Claude Code / OpenClaw / Cursor)
 
 ## Quick Start
 
+### Agent Install (recommended)
+
+One message to your AI agent. It handles everything — API key, plugin install, config, verification.
+
+**Hosted (api.ourmem.ai — nothing to deploy):**
+
+| Platform | Copy this to your agent |
+|----------|------------------------|
+| **OpenClaw** | `Read https://ourmem.ai/SKILL.md and follow the instructions to install and configure ourmem for OpenClaw` |
+| **Claude Code** | `Read https://ourmem.ai/SKILL.md and follow the instructions to install and configure ourmem for Claude Code` |
+| **OpenCode** | `Read https://ourmem.ai/SKILL.md and follow the instructions to install and configure ourmem for OpenCode` |
+| **Cursor / VS Code** | `Read https://ourmem.ai/SKILL.md and follow the instructions to install and configure ourmem as MCP Server` |
+
+**Self-hosted (your own server):**
+
+| Platform | How to install |
+|----------|---------------|
+| **OpenClaw** | Run `openclaw skills install ourmem`, then tell your agent: `setup ourmem in self-hosted mode` |
+| **Claude Code** | `Read https://raw.githubusercontent.com/ourmem/omem/main/skills/ourmem/SKILL.md and install ourmem for Claude Code, self-hosted mode` |
+| **OpenCode** | `Read https://raw.githubusercontent.com/ourmem/omem/main/skills/ourmem/SKILL.md and install ourmem for OpenCode, self-hosted mode` |
+
+That's it. Your agent handles the rest.
+
+---
+
+<details>
+<summary><b>Manual Install</b> (without agent assistance)</summary>
+
 ### 1. Get an API Key
 
-**Hosted (no setup needed):**
+**Hosted:**
 
 ```bash
 curl -sX POST https://api.ourmem.ai/v1/tenants \
@@ -164,67 +194,13 @@ Save the returned `api_key` — this reconnects you to the same memory from any 
 
 ### 2. Install Plugin
 
-#### OpenCode
+**OpenCode:** Add `"plugin": ["@ourmem/opencode"]` to `opencode.json` + set `OMEM_API_URL` and `OMEM_API_KEY` env vars.
 
-Add to `opencode.json`:
+**Claude Code:** `/plugin marketplace add ourmem/omem` + set env vars in `~/.claude/settings.json`.
 
-```json
-{
-  "plugin": ["@ourmem/opencode"]
-}
-```
+**OpenClaw:** `openclaw plugins install @ourmem/openclaw` + configure `openclaw.json` with apiUrl and apiKey.
 
-Set environment variables:
-
-```bash
-export OMEM_API_URL="https://api.ourmem.ai"
-export OMEM_API_KEY="your-api-key"
-```
-
-#### Claude Code
-
-```bash
-/plugin marketplace add ourmem/omem
-/plugin install ourmem@ourmem/omem
-```
-
-Set in `~/.claude/settings.json`:
-
-```json
-{
-  "env": {
-    "OMEM_API_URL": "https://api.ourmem.ai",
-    "OMEM_API_KEY": "your-api-key"
-  }
-}
-```
-
-#### OpenClaw
-
-```bash
-openclaw plugins install @ourmem/openclaw
-```
-
-Add to `openclaw.json`:
-
-```json
-{
-  "plugins": {
-    "slots": { "memory": "ourmem" },
-    "entries": {
-      "ourmem": {
-        "enabled": true,
-        "config": {
-          "apiUrl": "https://api.ourmem.ai",
-          "apiKey": "your-api-key"
-        }
-      }
-    }
-  }
-}
-```
-
-#### MCP Server (Cursor, VS Code, Claude Desktop)
+**MCP (Cursor / VS Code / Claude Desktop):**
 
 ```json
 {
@@ -244,19 +220,14 @@ Add to `openclaw.json`:
 ### 3. Verify
 
 ```bash
-export OMEM_API_URL="https://api.ourmem.ai"
-export OMEM_API_KEY="your-api-key"
-
-# Store a memory
 curl -sX POST "$OMEM_API_URL/v1/memories" \
-  -H "X-API-Key: $OMEM_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"content": "I prefer dark mode in all editors", "tags": ["preference"]}'
+  -H "X-API-Key: $OMEM_API_KEY" -H "Content-Type: application/json" \
+  -d '{"content": "I prefer dark mode", "tags": ["preference"]}'
 
-# Search it back
-curl -s "$OMEM_API_URL/v1/memories/search?q=editor+theme" \
-  -H "X-API-Key: $OMEM_API_KEY" | jq '.results[0].memory.content'
+curl -s "$OMEM_API_URL/v1/memories/search?q=dark+mode" -H "X-API-Key: $OMEM_API_KEY"
 ```
+
+</details>
 
 ## What Your Agent Gets
 
