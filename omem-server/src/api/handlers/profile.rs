@@ -4,7 +4,7 @@ use axum::extract::{Extension, Query, State};
 use axum::Json;
 use serde::Deserialize;
 
-use crate::api::server::AppState;
+use crate::api::server::{AppState, personal_space_id};
 use crate::domain::error::OmemError;
 use crate::domain::tenant::AuthInfo;
 use crate::profile::service::ProfileService;
@@ -21,7 +21,7 @@ pub async fn get_profile(
     Extension(auth): Extension<AuthInfo>,
     Query(params): Query<ProfileQuery>,
 ) -> Result<Json<serde_json::Value>, OmemError> {
-    let store = state.store_manager.get_store(&auth.tenant_id).await?;
+    let store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
     let profile_service = ProfileService::new(store);
 
     let query = if params.q.is_empty() {

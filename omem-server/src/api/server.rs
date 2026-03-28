@@ -13,3 +13,9 @@ pub struct AppState {
     pub llm: Arc<dyn LlmService>,
     pub config: OmemConfig,
 }
+
+/// Map tenant_id to their personal Space ID.
+/// All CRUD operations go through the personal space by default.
+pub fn personal_space_id(tenant_id: &str) -> String {
+    format!("personal/{tenant_id}")
+}

@@ -7,7 +7,7 @@ use axum::response::IntoResponse;
 use axum::Json;
 use serde::Serialize;
 
-use crate::api::server::AppState;
+use crate::api::server::{AppState, personal_space_id};
 use crate::connectors::github::{ConnectRequest, GitHubConnector, WebhookPayload};
 use crate::domain::error::OmemError;
 use crate::domain::tenant::AuthInfo;
@@ -80,7 +80,7 @@ pub async fn github_connect(
         return Err(OmemError::Validation("access_token is required".to_string()));
     }
 
-    let store = state.store_manager.get_store(&auth.tenant_id).await?;
+    let store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
     let webhook_secret = std::env::var("OMEM_GITHUB_WEBHOOK_SECRET").ok();
 
     let connector = GitHubConnector::new(

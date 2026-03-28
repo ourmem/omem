@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "omem": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@ourmem/mcp"
+      ],
+      "env": {
+        "OMEM_API_URL": "https://api.ourmem.ai",
+        "OMEM_API_KEY": "e7467073-129e-4e36-a61c-ad2443307dd0"
+      }
+    }
+  }
+}

@@ -7,7 +7,7 @@ use axum::response::IntoResponse;
 use axum::Json;
 use serde::Serialize;
 
-use crate::api::server::AppState;
+use crate::api::server::{AppState, personal_space_id};
 use crate::domain::category::Category;
 use crate::domain::error::OmemError;
 use crate::domain::memory::Memory;
@@ -68,7 +68,7 @@ pub async fn upload_file(
     let (filename, mime, data) = file_data
         .ok_or_else(|| OmemError::Validation("no 'file' field in multipart body".to_string()))?;
 
-    let store = state.store_manager.get_store(&auth.tenant_id).await?;
+    let store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
 
     let detected = MultiModalService::detect_content_type(&filename, &mime);
     let content_type_str = format!("{detected:?}");

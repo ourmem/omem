@@ -7,7 +7,7 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::api::server::AppState;
+use crate::api::server::{AppState, personal_space_id};
 use crate::domain::error::OmemError;
 use crate::domain::memory::Memory;
 use crate::domain::space::{AutoShareRule, MemberRole, Provenance, SharingAction, SharingEvent, Space};
@@ -196,7 +196,7 @@ pub async fn share_memory(
         ));
     }
 
-    let source_store = state.store_manager.get_store(&auth.tenant_id).await?;
+    let source_store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
     let source_memory = source_store
         .get_by_id(&id)
         .await?
@@ -256,7 +256,7 @@ pub async fn pull_memory(
         .await?
         .ok_or_else(|| OmemError::NotFound(format!("memory {id} in space {}", body.source_space)))?;
 
-    let personal_store = state.store_manager.get_store(&auth.tenant_id).await?;
+    let personal_store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
     let visibility = body.visibility.unwrap_or_else(|| "private".to_string());
     let agent_id = auth.agent_id.as_deref().unwrap_or("");
 
@@ -375,7 +375,7 @@ pub async fn batch_share(
 
     verify_space_write_access(&target_space, &auth.tenant_id)?;
 
-    let source_store = state.store_manager.get_store(&auth.tenant_id).await?;
+    let source_store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
     let target_store = state.store_manager.get_store(&target_space.id).await?;
     let agent_id = auth.agent_id.as_deref().unwrap_or("");
 

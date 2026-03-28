@@ -5,7 +5,7 @@ use axum::extract::{Extension, Query, State};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
-use crate::api::server::AppState;
+use crate::api::server::{AppState, personal_space_id};
 use crate::domain::error::OmemError;
 use crate::domain::memory::Memory;
 use crate::domain::space::SharingAction;
@@ -72,7 +72,7 @@ async fn collect_memories(
             let mut seen_ids = HashSet::new();
             let mut all = Vec::new();
 
-            let tenant_store = state.store_manager.get_store(&auth.tenant_id).await?;
+            let tenant_store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
             for mem in tenant_store.list_all_active().await? {
                 if seen_ids.insert(mem.id.clone()) {
                     all.push(mem);
@@ -337,7 +337,7 @@ pub async fn get_decay(
         return Err(OmemError::Validation("memory_id is required".to_string()));
     }
 
-    let store = state.store_manager.get_store(&auth.tenant_id).await?;
+    let store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
     let memory = store
         .get_by_id(&params.memory_id)
         .await?

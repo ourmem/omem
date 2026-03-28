@@ -41,7 +41,7 @@ pub async fn create_tenant(
 
     let now = chrono::Utc::now().to_rfc3339();
     let personal_space = Space {
-        id: format!("personal:{id}"),
+        id: format!("personal/{id}"),
         space_type: SpaceType::Personal,
         name: body.name,
         owner_id: id.clone(),

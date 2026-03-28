@@ -6,7 +6,7 @@ use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
-use crate::api::server::AppState;
+use crate::api::server::{AppState, personal_space_id};
 use crate::domain::category::Category;
 use crate::domain::error::OmemError;
 use crate::domain::memory::Memory;
@@ -124,7 +124,7 @@ pub async fn create_memory(
     Extension(auth): Extension<AuthInfo>,
     Json(body): Json<CreateMemoryBody>,
 ) -> Result<impl IntoResponse, OmemError> {
-    let store = state.store_manager.get_store(&auth.tenant_id).await?;
+    let store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
 
     if let Some(messages) = body.messages {
         if messages.is_empty() {
@@ -224,7 +224,7 @@ pub async fn search_memories(
         .await?;
 
     if spaces.is_empty() {
-        let store = state.store_manager.get_store(&auth.tenant_id).await?;
+        let store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
 
         let request = SearchRequest {
             query: params.q,
@@ -348,7 +348,7 @@ pub async fn get_memory(
     Extension(auth): Extension<AuthInfo>,
     Path(id): Path<String>,
 ) -> Result<Json<Memory>, OmemError> {
-    let store = state.store_manager.get_store(&auth.tenant_id).await?;
+    let store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
     let memory = store
         .get_by_id(&id)
         .await?
@@ -364,7 +364,7 @@ pub async fn update_memory(
     Path(id): Path<String>,
     Json(body): Json<UpdateMemoryBody>,
 ) -> Result<Json<Memory>, OmemError> {
-    let store = state.store_manager.get_store(&auth.tenant_id).await?;
+    let store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
     let mut memory = store
         .get_by_id(&id)
         .await?
@@ -415,7 +415,7 @@ pub async fn delete_memory(
     Extension(auth): Extension<AuthInfo>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, OmemError> {
-    let store = state.store_manager.get_store(&auth.tenant_id).await?;
+    let store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
     store
         .get_by_id(&id)
         .await?
@@ -432,7 +432,7 @@ pub async fn list_memories(
     Extension(auth): Extension<AuthInfo>,
     Query(params): Query<ListQuery>,
 ) -> Result<Json<ListResponseDto>, OmemError> {
-    let store = state.store_manager.get_store(&auth.tenant_id).await?;
+    let store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
 
     let filter = ListFilter {
         category: params.category,
