@@ -376,10 +376,10 @@ impl LanceStore {
         // LanceDB requires data in the table before creating FTS indexes.
         if !self.fts_indexed.load(Ordering::Relaxed) {
             if let Err(e) = self.create_fts_index().await {
-                tracing::warn!("Failed to create FTS index (may already exist): {e}");
+                tracing::warn!("Failed to create FTS index (will retry on next write): {e}");
+            } else {
+                self.fts_indexed.store(true, Ordering::Relaxed);
             }
-            // Mark as indexed regardless — either it succeeded or it already exists.
-            self.fts_indexed.store(true, Ordering::Relaxed);
         }
 
         Ok(())
@@ -479,7 +479,7 @@ impl LanceStore {
         if let Some(vis) = visibility_filter {
             filter.push_str(&format!(" AND ({vis})"));
         }
-        query = query.postfilter().only_if(filter);
+        query = query.only_if(filter);
 
         let batches: Vec<RecordBatch> = query
             .execute()
@@ -526,7 +526,7 @@ impl LanceStore {
         if let Some(vis) = visibility_filter {
             filter.push_str(&format!(" AND ({vis})"));
         }
-        q = q.only_if(filter);
+        q = q.postfilter().only_if(filter);
 
         let batches: Vec<RecordBatch> = q
             .execute()
