@@ -2,14 +2,17 @@
 name: ourmem
 version: 0.1.0
 description: |
-  Persistent memory for AI agents — hosted at api.ourmem.ai.
+  Shared memory that never forgets — hosted at api.ourmem.ai.
+  Collective intelligence for AI agents with Space-based sharing across agents and teams.
   Use when users mention: "install ourmem", "setup memory", "add memory plugin",
   "memory not working", "remember this", "save this", "don't forget",
   "recall preferences", "what did I say last time", "import memories",
   "share memories", "team memory", "shared space", "persistent memory",
-  "cross-session memory", "ourmem onboarding".
+  "cross-session memory", "ourmem onboarding", "collective intelligence",
+  "agent collaboration", "knowledge sharing", "memory decay", "memory space",
+  "memory analytics", "memory stats".
   Even if the user doesn't say "ourmem", trigger when they want persistent memory,
-  memory sharing between agents, or memory import/export.
+  memory sharing between agents, memory analytics, or memory import/export.
 keywords:
   - ourmem
   - memory
@@ -19,26 +22,31 @@ keywords:
   - recall
   - space sharing
   - team memory
+  - collective intelligence
+  - memory analytics
+  - memory decay
 metadata:
   openclaw:
     emoji: "🧠"
 ---
 
-# ourmem
+# ourmem — Shared Memory That Never Forgets
 
-ourmem gives AI agents persistent memory — across sessions, devices, and teams.
+ourmem gives AI agents shared persistent memory — across sessions, devices, agents, and teams.
 
-Memories survive restarts. Multiple agents share context through Spaces. One API key reconnects everything. Hosted at `api.ourmem.ai` — nothing to deploy.
+Most AI memory systems trap knowledge in silos. ourmem's three-tier Space architecture enables collective intelligence: knowledge flows across agents and teams with provenance tracking and quality-gated sharing. One API key reconnects everything. Hosted at `api.ourmem.ai` — nothing to deploy.
 
 ## When to activate
 
 Trigger this skill when the user wants to:
 
-- Persist information across sessions ("remember this", "记住这个")
-- Recall something from before ("what did I say?", "我上次说了什么")
+- Persist information across sessions ("remember this", "save this for later")
+- Recall something from before ("what did I say last time?")
 - Share knowledge between agents or team members
 - Set up or fix the memory plugin
 - Import existing memory files
+- View memory analytics or stats
+- Manage memory spaces or sharing
 
 Don't use for temporary context, one-off tasks, or unrelated troubleshooting.
 
@@ -109,7 +117,7 @@ Configure in OpenClaw settings:
 }
 ```
 
-For slow npm (China networks):
+For slow npm networks, use a mirror:
 
 ```bash
 NPM_CONFIG_REGISTRY=https://registry.npmmirror.com openclaw plugins install @ourmem/openclaw
@@ -208,7 +216,7 @@ Empty search results are normal for new keys — the search index builds after t
 After successful setup, send this (translate to the user's language):
 
 ```
-✅ ourmem is ready.
+ourmem is ready.
 
 WHAT YOU CAN DO NOW
 
@@ -216,6 +224,7 @@ WHAT YOU CAN DO NOW
 2. Say "remember: [something]" to explicitly save a fact
 3. Say "create a team space" to share memories between agents
 4. Say "import memories" to bring in existing memory files
+5. Visit https://ourmem.ai/space to browse and manage your memories visually
 
 YOUR API KEY
 
@@ -261,15 +270,30 @@ These fire without user action:
 | Session start | New conversation begins | Recent relevant memories injected into context |
 | Session end | Conversation ends | Key information auto-captured and stored |
 
+## Smart Ingest
+
+When conversations are ingested (`"mode": "smart"`), the server runs a multi-stage pipeline:
+
+1. **LLM extraction** — extracts atomic facts from conversation, classified into 6 categories (profile, preferences, entities, events, cases, patterns)
+2. **Noise filter** — regex patterns + vector prototype matching + feedback learning removes low-value content
+3. **Admission control** — 5-dimension scoring (utility, confidence, novelty, recency, type prior) gates what gets stored
+4. **7-decision reconciliation** — each fact is compared against existing memories: CREATE (new), MERGE (refine), SKIP (duplicate), SUPERSEDE (outdated), SUPPORT (reinforce), CONTEXTUALIZE (add nuance), or CONTRADICT (conflicting)
+
+This means the memory store gets smarter over time — contradictions are resolved, duplicates are merged, noise is filtered.
+
 ## Space sharing
 
-ourmem organizes memories into Spaces:
+ourmem organizes memories into three-tier Spaces for collective intelligence:
 
 | Type | Scope | Example |
 |------|-------|---------|
 | Personal | One user, multiple agents | Your Coder + Writer share preferences |
 | Team | Multiple users | Backend team shares architecture decisions |
 | Organization | Company-wide | Tech standards, security policies |
+
+**Roles:** `admin` (full control), `member` (read/write), `reader` (read-only)
+
+Each agent sees: own private + shared spaces. Can modify own + shared. Never another agent's private data. Every shared memory carries provenance — who shared it, when, and where it came from.
 
 Create a team space:
 
@@ -289,7 +313,22 @@ curl -sX POST "https://api.ourmem.ai/v1/memories/MEMORY_ID/share" \
   -d '{"target_space": "team:SPACE_ID"}'
 ```
 
-Each agent sees: own private + shared spaces. Can modify own + shared. Never another agent's private data.
+## Memory Space (visual interface)
+
+Users can browse, search, and manage memories visually at **https://ourmem.ai/space** — see how memories connect, evolve, and decay over time.
+
+## Analytics
+
+ourmem provides memory analytics through the stats API:
+
+- **Overview** (`/v1/stats`) — totals by type, category, tier, space, agent + timeline
+- **Space overview** (`/v1/stats/spaces`) — per-space stats, member contributions, sharing activity
+- **Sharing flow** (`/v1/stats/sharing`) — who shared what, where, when + flow graph
+- **Agent activity** (`/v1/stats/agents`) — per-agent memory creation, search counts, top categories
+- **Tag frequency** (`/v1/stats/tags`) — tag usage across spaces
+- **Decay curves** (`/v1/stats/decay?memory_id=X`) — Weibull decay visualization for any memory
+- **Relation graph** (`/v1/stats/relations`) — memory relationship network with cross-space edges
+- **Server config** (`/v1/stats/config`) — decay parameters, promotion thresholds, retrieval settings
 
 ## Memory import
 
@@ -325,6 +364,13 @@ curl -sX POST https://api.ourmem.ai/v1/memories \
   -d '{"content": "User prefers dark mode", "tags": ["preference"]}'
 ```
 
+## Security
+
+- **Tenant isolation** — every API call is scoped to your tenant via X-API-Key. Data is physically separated per tenant.
+- **Privacy protection** — `<private>` tag redaction strips sensitive content before storage.
+- **Admission control** — 5-dimension scoring gate rejects low-quality or noisy data before it enters the memory store.
+- **Open source** — Apache-2.0 licensed plugins. Audit every line of code.
+
 ## Communication style
 
 - Say "API key", not "tenant ID" or "secret"
@@ -341,7 +387,7 @@ curl -sX POST https://api.ourmem.ai/v1/memories \
 | Connection refused | Server may be down — try again in a minute |
 | 401 Unauthorized | API key is wrong — verify or create a new tenant |
 | 404 on API call | URL path should start with `/v1/` |
-| npm install hangs | China: add `NPM_CONFIG_REGISTRY=https://registry.npmmirror.com` |
+| npm install hangs | Use mirror: `NPM_CONFIG_REGISTRY=https://registry.npmmirror.com` |
 | No memories returned | Normal for new keys — store one first, then search |
 | Search returns empty | Index builds after first write — wait a moment and retry |
 
@@ -349,6 +395,7 @@ curl -sX POST https://api.ourmem.ai/v1/memories \
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| **Core** | | |
 | POST | `/v1/tenants` | Create workspace, get API key |
 | POST | `/v1/memories` | Store memory or smart-ingest conversation |
 | GET | `/v1/memories/search?q=` | Hybrid search (vector + keyword) |
@@ -357,10 +404,26 @@ curl -sX POST https://api.ourmem.ai/v1/memories \
 | PUT | `/v1/memories/:id` | Update memory |
 | DELETE | `/v1/memories/:id` | Soft delete |
 | GET | `/v1/profile` | User profile (static + dynamic) |
+| **Spaces** | | |
 | POST | `/v1/spaces` | Create shared space |
+| GET | `/v1/spaces` | List accessible spaces |
+| POST | `/v1/spaces/:id/members` | Add member to space |
+| **Sharing** | | |
 | POST | `/v1/memories/:id/share` | Share to a space |
-| POST | `/v1/files` | Upload file (PDF/image/code) |
-| GET | `/v1/stats` | Analytics |
+| POST | `/v1/memories/:id/pull` | Pull from another space |
+| POST | `/v1/memories/batch-share` | Batch share multiple memories |
+| **Files** | | |
+| POST | `/v1/files` | Upload file (PDF/image/video/code) |
+| **Analytics** | | |
+| GET | `/v1/stats` | Global stats (by type/category/tier/space/agent) |
+| GET | `/v1/stats/spaces` | Per-space overview |
+| GET | `/v1/stats/sharing` | Sharing flow analysis |
+| GET | `/v1/stats/agents` | Agent activity |
+| GET | `/v1/stats/tags` | Tag frequency |
+| GET | `/v1/stats/decay?memory_id=X` | Decay curve for a memory |
+| GET | `/v1/stats/relations` | Memory relationship graph |
+| GET | `/v1/stats/config` | Server config parameters |
+| **System** | | |
 | GET | `/health` | Health check (no auth) |
 
 Full API (35 endpoints): https://github.com/ourmem/omem/blob/main/docs/API.md
