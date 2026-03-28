@@ -480,6 +480,110 @@ curl -X DELETE http://localhost:8080/v1/memories/550e8400-e29b-41d4-a716-4466554
 
 ---
 
+### POST /v1/memories/batch-delete
+
+批量删除记忆（软删除）。支持两种模式：按 ID 列表或按条件过滤。
+
+**认证**: 需要 `X-API-Key`
+
+**模式一：按 ID 列表**
+
+```json
+{
+  "memory_ids": ["id1", "id2", "id3"]
+}
+```
+
+**模式二：按条件过滤**
+
+```json
+{
+  "filter": {
+    "source": "intelligence",
+    "tags": ["imported"],
+    "category": "entities",
+    "memory_type": "session",
+    "state": "archived",
+    "before": "2026-03-27T00:00:00Z"
+  },
+  "confirm": true
+}
+```
+
+`confirm=false`（默认）时返回预览不实际删除：`{"would_delete": 42}`
+`confirm=true` 时实际执行删除：`{"deleted": 42, "mode": "filter"}`
+
+**curl 示例**:
+
+```bash
+# 按 ID 删除
+curl -X POST http://localhost:8080/v1/memories/batch-delete \
+  -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" \
+  -d '{"memory_ids": ["id1", "id2"]}'
+
+# 按条件预览
+curl -X POST http://localhost:8080/v1/memories/batch-delete \
+  -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" \
+  -d '{"filter": {"source": "import"}, "confirm": false}'
+
+# 按条件执行
+curl -X POST http://localhost:8080/v1/memories/batch-delete \
+  -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" \
+  -d '{"filter": {"source": "import"}, "confirm": true}'
+```
+
+---
+
+### DELETE /v1/memories/all
+
+清空当前空间的所有记忆和会话数据（软删除）。需要确认 header 防误操作。
+
+**认证**: 需要 `X-API-Key` + `X-Confirm: delete-all` header
+
+**Response** `200 OK`:
+
+```json
+{
+  "deleted": 286,
+  "sessions_cleared": 15
+}
+```
+
+**curl 示例**:
+
+```bash
+curl -X DELETE http://localhost:8080/v1/memories/all \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "X-Confirm: delete-all"
+```
+
+---
+
+### POST /v1/imports/{id}/rollback
+
+回滚某次导入 — 删除该导入产生的所有记忆和原始会话数据。
+
+**认证**: 需要 `X-API-Key`
+
+**Response** `200 OK`:
+
+```json
+{
+  "deleted_memories": 47,
+  "deleted_sessions": 1,
+  "import_status": "rolled_back"
+}
+```
+
+**curl 示例**:
+
+```bash
+curl -X POST http://localhost:8080/v1/imports/IMPORT_ID/rollback \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+---
+
 ### GET /v1/memories
 
 分页列出记忆，支持多维度过滤和排序。
