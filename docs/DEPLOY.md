@@ -5,8 +5,9 @@
 1. [Docker Quick Start (Development)](#1-docker-quick-start-development)
 2. [Production Docker Deployment](#2-production-docker-deployment)
 3. [AWS Deployment (ECS Fargate + S3)](#3-aws-deployment-ecs-fargate--s3)
-4. [Environment Variables Reference](#4-environment-variables-reference)
-5. [Monitoring & Observability](#5-monitoring--observability)
+4. [Object Storage (OSS / S3)](#4-object-storage-oss--s3)
+5. [Environment Variables Reference](#5-environment-variables-reference)
+6. [Monitoring & Observability](#6-monitoring--observability)
 
 ---
 
@@ -310,7 +311,102 @@ S3 storage cost: ~$0.023/GB/month (typically <$1/month for most workloads).
 
 ---
 
-## 4. Environment Variables Reference
+## 4. Object Storage (OSS / S3)
+
+By default ourmem stores data on local disk (`./omem-data/`). For production durability and scalability, configure object storage. ourmem supports two schemes:
+
+| Scheme | Variable | Best for |
+|--------|----------|----------|
+| `oss://` | `OMEM_OSS_BUCKET` | Alibaba Cloud (ECS, ACK) |
+| `s3://` | `OMEM_S3_BUCKET` | AWS, MinIO, any S3-compatible |
+
+> **Priority rule:** If both `OMEM_OSS_BUCKET` and `OMEM_S3_BUCKET` are set, OSS is used.
+
+### Alibaba Cloud OSS
+
+```bash
+# Required
+OMEM_OSS_BUCKET=ourmem                                        # bucket name
+OSS_ENDPOINT=https://oss-ap-southeast-1-internal.aliyuncs.com  # use internal endpoint on ECS
+
+# Credentials (choose one)
+# Option A: Static AK/SK
+OSS_ACCESS_KEY_ID=your-ak
+OSS_ACCESS_KEY_SECRET=your-sk
+
+# Option B: ECS RAM role (recommended on Alibaba Cloud ECS)
+# No credentials needed — the server auto-discovers them from instance metadata.
+# If using a wrapper script for STS tokens, also set:
+# OSS_SECURITY_TOKEN=<sts-token>
+```
+
+Data is stored at `oss://{bucket}/omem/` (e.g., `oss://ourmem/omem/`).
+
+### S3-Compatible Storage
+
+```bash
+OMEM_S3_BUCKET=your-bucket
+AWS_REGION=us-east-1
+# AWS_ENDPOINT_URL=http://minio:9000   # for MinIO or other S3-compatible
+# AWS_ACCESS_KEY_ID=...                 # not needed with IAM roles
+# AWS_SECRET_ACCESS_KEY=...
+```
+
+Data is stored at `s3://{bucket}/omem/`.
+
+### ECS RAM Role with Wrapper Script
+
+On Alibaba Cloud ECS, the recommended approach is to attach a RAM role to the instance and fetch STS temporary credentials from the instance metadata service. Use a wrapper script as the systemd entrypoint:
+
+**/opt/omem-start.sh:**
+
+```bash
+#!/bin/bash
+# Fetch STS credentials from ECS instance metadata (RAM role)
+CREDS=$(curl -s http://100.100.100.200/latest/meta-data/ram/security-credentials/YOUR_ROLE_NAME)
+export OSS_ACCESS_KEY_ID=$(echo "$CREDS" | python3 -c "import sys,json; print(json.load(sys.stdin)['AccessKeyId'])")
+export OSS_ACCESS_KEY_SECRET=$(echo "$CREDS" | python3 -c "import sys,json; print(json.load(sys.stdin)['AccessKeySecret'])")
+export OSS_SECURITY_TOKEN=$(echo "$CREDS" | python3 -c "import sys,json; print(json.load(sys.stdin)['SecurityToken'])")
+exec /opt/omem-server
+```
+
+Make it executable: `chmod +x /opt/omem-start.sh`
+
+Update your systemd service to use the wrapper:
+
+```ini
+[Service]
+EnvironmentFile=/opt/omem.env
+ExecStart=/opt/omem-start.sh
+```
+
+### Example omem.env with OSS
+
+```bash
+OMEM_PORT=8080
+OMEM_LOG_LEVEL=info
+
+# Storage: Alibaba Cloud OSS
+OMEM_OSS_BUCKET=ourmem
+OSS_ENDPOINT=https://oss-ap-southeast-1-internal.aliyuncs.com
+# Credentials via ECS RAM role (wrapper script handles STS tokens)
+
+# Embedding
+OMEM_EMBED_PROVIDER=openai-compatible
+OMEM_EMBED_API_KEY=sk-xxx
+OMEM_EMBED_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode
+OMEM_EMBED_MODEL=text-embedding-v3
+
+# LLM
+OMEM_LLM_PROVIDER=openai-compatible
+OMEM_LLM_API_KEY=sk-xxx
+OMEM_LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode
+OMEM_LLM_MODEL=qwen-plus
+```
+
+---
+
+## 5. Environment Variables Reference
 
 ### Server Configuration
 
@@ -324,11 +420,18 @@ S3 storage cost: ~$0.023/GB/month (typically <$1/month for most workloads).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OMEM_S3_BUCKET` | `omem-data` | S3 bucket name for LanceDB storage |
+| `OMEM_OSS_BUCKET` | _(none)_ | Alibaba Cloud OSS bucket name. Enables `oss://` storage scheme |
+| `OSS_ENDPOINT` | _(none)_ | OSS endpoint URL (e.g., `https://oss-ap-southeast-1-internal.aliyuncs.com`) |
+| `OSS_ACCESS_KEY_ID` | _(none)_ | OSS access key (not needed with ECS RAM role) |
+| `OSS_ACCESS_KEY_SECRET` | _(none)_ | OSS secret key (not needed with ECS RAM role) |
+| `OSS_SECURITY_TOKEN` | _(none)_ | STS security token (set by wrapper script for RAM role) |
+| `OMEM_S3_BUCKET` | `omem-data` | S3 bucket name for LanceDB storage. Enables `s3://` storage scheme |
 | `AWS_ENDPOINT_URL` | _(none)_ | Custom S3 endpoint (for MinIO: `http://minio:9000`) |
 | `AWS_ACCESS_KEY_ID` | _(none)_ | AWS access key (not needed with IAM roles) |
 | `AWS_SECRET_ACCESS_KEY` | _(none)_ | AWS secret key (not needed with IAM roles) |
 | `AWS_REGION` | `us-east-1` | AWS region |
+
+> **Priority:** OSS takes priority over S3. If both `OMEM_OSS_BUCKET` and `OMEM_S3_BUCKET` are set, OSS is used.
 
 ### Embedding Provider
 
@@ -360,7 +463,7 @@ S3 storage cost: ~$0.023/GB/month (typically <$1/month for most workloads).
 
 ---
 
-## 5. Monitoring & Observability
+## 6. Monitoring & Observability
 
 ### Health Check
 
