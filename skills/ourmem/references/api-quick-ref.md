@@ -79,22 +79,22 @@ curl -sX POST $API_URL/v1/spaces/SPACE_ID/members \
 # Share memory to space
 curl -sX POST $API_URL/v1/memories/MEMORY_ID/share \
   -H "Content-Type: application/json" -H "X-API-Key: $KEY" \
-  -d '{"target_space": "team:SPACE_UUID"}'
+  -d '{"target_space": "team/SPACE_UUID"}'
 
 # Batch share
 curl -sX POST $API_URL/v1/memories/batch-share \
   -H "Content-Type: application/json" -H "X-API-Key: $KEY" \
-  -d '{"memory_ids": ["id1","id2"], "target_space": "team:SPACE_UUID"}'
+  -d '{"memory_ids": ["id1","id2"], "target_space": "team/SPACE_UUID"}'
 
 # Pull memory from space
 curl -sX POST $API_URL/v1/memories/MEMORY_ID/pull \
   -H "Content-Type: application/json" -H "X-API-Key: $KEY" \
-  -d '{"source_space": "team:SPACE_UUID"}'
+  -d '{"source_space": "team/SPACE_UUID"}'
 
 # Auto-share rules
 curl -sX POST $API_URL/v1/spaces/SPACE_ID/auto-share-rules \
   -H "Content-Type: application/json" -H "X-API-Key: $KEY" \
-  -d '{"source_space": "personal:USER_ID", "categories": ["cases","patterns"], "min_importance": 0.7}'
+  -d '{"source_space": "personal/USER_ID", "categories": ["cases","patterns"], "min_importance": 0.7}'
 
 # List auto-share rules
 curl -s $API_URL/v1/spaces/SPACE_ID/auto-share-rules -H "X-API-Key: $KEY"

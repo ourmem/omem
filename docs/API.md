@@ -292,7 +292,7 @@ curl -X POST http://localhost:8080/v1/memories \
         "created_at": "2025-01-15T10:30:00+00:00",
         "updated_at": "2025-01-16T08:00:00+00:00",
         "last_accessed_at": "2025-01-20T14:22:00+00:00",
-        "space_id": "personal:550e8400-e29b-41d4-a716-446655440000",
+        "space_id": "personal/550e8400-e29b-41d4-a716-446655440000",
         "visibility": "global",
         "owner_agent_id": "coder",
         "provenance": null
@@ -350,7 +350,7 @@ curl "http://localhost:8080/v1/memories/search?q=editor+preferences&include_trac
   -H "X-API-Key: YOUR_API_KEY"
 
 # 指定 Space 搜索
-curl "http://localhost:8080/v1/memories/search?q=architecture&space=team:backend" \
+curl "http://localhost:8080/v1/memories/search?q=architecture&space=team/backend" \
   -H "X-API-Key: YOUR_API_KEY"
 
 # 搜索所有 Space
@@ -666,7 +666,7 @@ Space 是记忆的组织单元，支持 personal（个人）、team（团队）�
 
 ```json
 {
-  "id": "team:550e8400-e29b-41d4-a716-446655440000",
+  "id": "team/550e8400-e29b-41d4-a716-446655440000",
   "space_type": "team",
   "name": "Backend Team",
   "owner_id": "YOUR_TENANT_ID",
@@ -725,7 +725,7 @@ curl -X POST http://localhost:8080/v1/spaces \
 ```json
 [
   {
-    "id": "personal:550e8400-e29b-41d4-a716-446655440000",
+    "id": "personal/550e8400-e29b-41d4-a716-446655440000",
     "space_type": "personal",
     "name": "my-workspace",
     "owner_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -741,7 +741,7 @@ curl -X POST http://localhost:8080/v1/spaces \
     "updated_at": "2025-01-15T10:30:00+00:00"
   },
   {
-    "id": "team:660e8400-e29b-41d4-a716-446655440000",
+    "id": "team/660e8400-e29b-41d4-a716-446655440000",
     "space_type": "team",
     "name": "Backend Team",
     "owner_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -772,7 +772,7 @@ curl http://localhost:8080/v1/spaces \
 
 | 参数 | 类型 | 说明 |
 |------|------|------|
-| id | string | Space ID（如 `team:xxx`） |
+| id | string | Space ID（如 `team/xxx`） |
 
 **Response** `200 OK`:
 
@@ -788,7 +788,7 @@ curl http://localhost:8080/v1/spaces \
 **curl 示例**:
 
 ```bash
-curl http://localhost:8080/v1/spaces/team:660e8400-e29b-41d4-a716-446655440000 \
+curl http://localhost:8080/v1/spaces/team/660e8400-e29b-41d4-a716-446655440000 \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 
@@ -833,7 +833,7 @@ curl http://localhost:8080/v1/spaces/team:660e8400-e29b-41d4-a716-446655440000 \
 **curl 示例**:
 
 ```bash
-curl -X PUT http://localhost:8080/v1/spaces/team:660e8400-e29b-41d4-a716-446655440000 \
+curl -X PUT http://localhost:8080/v1/spaces/team/660e8400-e29b-41d4-a716-446655440000 \
   -H "Content-Type: application/json" \
   -H "X-API-Key: YOUR_API_KEY" \
   -d '{"name": "Backend & Infra Team"}'
@@ -871,7 +871,7 @@ curl -X PUT http://localhost:8080/v1/spaces/team:660e8400-e29b-41d4-a716-4466554
 **curl 示例**:
 
 ```bash
-curl -X DELETE http://localhost:8080/v1/spaces/team:660e8400-e29b-41d4-a716-446655440000 \
+curl -X DELETE http://localhost:8080/v1/spaces/team/660e8400-e29b-41d4-a716-446655440000 \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 
@@ -919,7 +919,7 @@ curl -X DELETE http://localhost:8080/v1/spaces/team:660e8400-e29b-41d4-a716-4466
 **curl 示例**:
 
 ```bash
-curl -X POST http://localhost:8080/v1/spaces/team:660e8400-e29b-41d4-a716-446655440000/members \
+curl -X POST http://localhost:8080/v1/spaces/team/660e8400-e29b-41d4-a716-446655440000/members \
   -H "Content-Type: application/json" \
   -H "X-API-Key: YOUR_API_KEY" \
   -d '{"user_id": "user-004", "role": "member"}'
@@ -956,7 +956,7 @@ curl -X POST http://localhost:8080/v1/spaces/team:660e8400-e29b-41d4-a716-446655
 **curl 示例**:
 
 ```bash
-curl -X DELETE http://localhost:8080/v1/spaces/team:660e8400-e29b-41d4-a716-446655440000/members/user-004 \
+curl -X DELETE http://localhost:8080/v1/spaces/team/660e8400-e29b-41d4-a716-446655440000/members/user-004 \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 
@@ -1003,7 +1003,7 @@ curl -X DELETE http://localhost:8080/v1/spaces/team:660e8400-e29b-41d4-a716-4466
 **curl 示例**:
 
 ```bash
-curl -X PUT http://localhost:8080/v1/spaces/team:660e8400-e29b-41d4-a716-446655440000/members/user-004 \
+curl -X PUT http://localhost:8080/v1/spaces/team/660e8400-e29b-41d4-a716-446655440000/members/user-004 \
   -H "Content-Type: application/json" \
   -H "X-API-Key: YOUR_API_KEY" \
   -d '{"role": "admin"}'
@@ -1034,7 +1034,7 @@ curl -X PUT http://localhost:8080/v1/spaces/team:660e8400-e29b-41d4-a716-4466554
 
 ```json
 {
-  "target_space": "team:backend",
+  "target_space": "team/backend",
   "note": "This architecture decision is relevant to the team"
 }
 ```
@@ -1069,11 +1069,11 @@ curl -X PUT http://localhost:8080/v1/spaces/team:660e8400-e29b-41d4-a716-4466554
   "created_at": "2025-01-20T14:00:00+00:00",
   "updated_at": "2025-01-20T14:00:00+00:00",
   "last_accessed_at": null,
-  "space_id": "team:backend",
+  "space_id": "team/backend",
   "visibility": "global",
   "owner_agent_id": "coder",
   "provenance": {
-    "shared_from_space": "personal:550e8400-e29b-41d4-a716-446655440000",
+    "shared_from_space": "personal/550e8400-e29b-41d4-a716-446655440000",
     "shared_from_memory": "660e8400-e29b-41d4-a716-446655440000",
     "shared_by_user": "550e8400-e29b-41d4-a716-446655440000",
     "shared_by_agent": "coder",
@@ -1098,7 +1098,7 @@ curl -X PUT http://localhost:8080/v1/spaces/team:660e8400-e29b-41d4-a716-4466554
 curl -X POST http://localhost:8080/v1/memories/660e8400-e29b-41d4-a716-446655440000/share \
   -H "Content-Type: application/json" \
   -H "X-API-Key: YOUR_API_KEY" \
-  -d '{"target_space": "team:backend"}'
+  -d '{"target_space": "team/backend"}'
 ```
 
 ---
@@ -1124,7 +1124,7 @@ curl -X POST http://localhost:8080/v1/memories/660e8400-e29b-41d4-a716-446655440
 
 ```json
 {
-  "source_space": "team:backend",
+  "source_space": "team/backend",
   "visibility": "private"
 }
 ```
@@ -1148,7 +1148,7 @@ curl -X POST http://localhost:8080/v1/memories/660e8400-e29b-41d4-a716-446655440
 curl -X POST http://localhost:8080/v1/memories/770e8400-e29b-41d4-a716-446655440000/pull \
   -H "Content-Type: application/json" \
   -H "X-API-Key: YOUR_API_KEY" \
-  -d '{"source_space": "team:backend", "visibility": "private"}'
+  -d '{"source_space": "team/backend", "visibility": "private"}'
 ```
 
 ---
@@ -1173,7 +1173,7 @@ curl -X POST http://localhost:8080/v1/memories/770e8400-e29b-41d4-a716-446655440
 
 ```json
 {
-  "target_space": "team:backend"
+  "target_space": "team/backend"
 }
 ```
 
@@ -1201,7 +1201,7 @@ curl -X POST http://localhost:8080/v1/memories/770e8400-e29b-41d4-a716-446655440
 curl -X POST http://localhost:8080/v1/memories/660e8400-e29b-41d4-a716-446655440000/unshare \
   -H "Content-Type: application/json" \
   -H "X-API-Key: YOUR_API_KEY" \
-  -d '{"target_space": "team:backend"}'
+  -d '{"target_space": "team/backend"}'
 ```
 
 ---
@@ -1226,7 +1226,7 @@ curl -X POST http://localhost:8080/v1/memories/660e8400-e29b-41d4-a716-446655440
     "660e8400-e29b-41d4-a716-446655440000",
     "770e8400-e29b-41d4-a716-446655440000"
   ],
-  "target_space": "team:backend"
+  "target_space": "team/backend"
 }
 ```
 
@@ -1238,13 +1238,13 @@ curl -X POST http://localhost:8080/v1/memories/660e8400-e29b-41d4-a716-446655440
     {
       "id": "new-copy-uuid-1",
       "content": "...",
-      "space_id": "team:backend",
+      "space_id": "team/backend",
       "provenance": { "..." : "..." }
     },
     {
       "id": "new-copy-uuid-2",
       "content": "...",
-      "space_id": "team:backend",
+      "space_id": "team/backend",
       "provenance": { "..." : "..." }
     }
   ],
@@ -1274,7 +1274,7 @@ curl -X POST http://localhost:8080/v1/memories/batch-share \
   -H "X-API-Key: YOUR_API_KEY" \
   -d '{
     "memory_ids": ["mem-id-1", "mem-id-2"],
-    "target_space": "team:backend"
+    "target_space": "team/backend"
   }'
 ```
 
@@ -1304,7 +1304,7 @@ curl -X POST http://localhost:8080/v1/memories/batch-share \
 
 ```json
 {
-  "source_space": "personal:user-001",
+  "source_space": "personal/user-001",
   "categories": ["cases", "patterns"],
   "tags": ["architecture"],
   "min_importance": 0.7,
@@ -1317,7 +1317,7 @@ curl -X POST http://localhost:8080/v1/memories/batch-share \
 ```json
 {
   "id": "880e8400-e29b-41d4-a716-446655440000",
-  "source_space": "personal:user-001",
+  "source_space": "personal/user-001",
   "categories": ["cases", "patterns"],
   "tags": ["architecture"],
   "min_importance": 0.7,
@@ -1337,11 +1337,11 @@ curl -X POST http://localhost:8080/v1/memories/batch-share \
 **curl 示例**:
 
 ```bash
-curl -X POST http://localhost:8080/v1/spaces/team:backend/auto-share-rules \
+curl -X POST http://localhost:8080/v1/spaces/team/backend/auto-share-rules \
   -H "Content-Type: application/json" \
   -H "X-API-Key: YOUR_API_KEY" \
   -d '{
-    "source_space": "personal:user-001",
+    "source_space": "personal/user-001",
     "categories": ["cases"],
     "min_importance": 0.7
   }'
@@ -1367,7 +1367,7 @@ curl -X POST http://localhost:8080/v1/spaces/team:backend/auto-share-rules \
 [
   {
     "id": "880e8400-e29b-41d4-a716-446655440000",
-    "source_space": "personal:user-001",
+    "source_space": "personal/user-001",
     "categories": ["cases", "patterns"],
     "tags": ["architecture"],
     "min_importance": 0.7,
@@ -1387,7 +1387,7 @@ curl -X POST http://localhost:8080/v1/spaces/team:backend/auto-share-rules \
 **curl 示例**:
 
 ```bash
-curl http://localhost:8080/v1/spaces/team:backend/auto-share-rules \
+curl http://localhost:8080/v1/spaces/team/backend/auto-share-rules \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 
@@ -1425,7 +1425,7 @@ curl http://localhost:8080/v1/spaces/team:backend/auto-share-rules \
 **curl 示例**:
 
 ```bash
-curl -X DELETE http://localhost:8080/v1/spaces/team:backend/auto-share-rules/880e8400-e29b-41d4-a716-446655440000 \
+curl -X DELETE http://localhost:8080/v1/spaces/team/backend/auto-share-rules/880e8400-e29b-41d4-a716-446655440000 \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 
@@ -1474,8 +1474,8 @@ curl -X DELETE http://localhost:8080/v1/spaces/team:backend/auto-share-rules/880
     "archived": 6
   },
   "by_space": {
-    "personal:user-001": 80,
-    "team:backend": 56,
+    "personal/user-001": 80,
+    "team/backend": 56,
     "default": 20
   },
   "by_visibility": {
@@ -1520,7 +1520,7 @@ curl "http://localhost:8080/v1/stats?days=30" \
   -H "X-API-Key: YOUR_API_KEY"
 
 # 按 Space 过滤
-curl "http://localhost:8080/v1/stats?space=team:backend" \
+curl "http://localhost:8080/v1/stats?space=team/backend" \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 
@@ -1538,7 +1538,7 @@ curl "http://localhost:8080/v1/stats?space=team:backend" \
 {
   "spaces": [
     {
-      "space_id": "personal:user-001",
+      "space_id": "personal/user-001",
       "space_type": "personal",
       "name": "My Workspace",
       "owner_id": "user-001",
@@ -1602,8 +1602,8 @@ curl http://localhost:8080/v1/stats/spaces \
       "id": "evt-001",
       "action": "share",
       "memory_id": "mem-001",
-      "from_space": "personal:user-001",
-      "to_space": "team:backend",
+      "from_space": "personal/user-001",
+      "to_space": "team/backend",
       "user_id": "user-001",
       "agent_id": "coder",
       "content_preview": "Use hexagonal architecture for...",
@@ -1611,10 +1611,10 @@ curl http://localhost:8080/v1/stats/spaces \
     }
   ],
   "flow_graph": {
-    "nodes": ["personal:user-001", "team:backend", "org:acme"],
+    "nodes": ["personal/user-001", "team/backend", "org/acme"],
     "edges": [
-      {"from": "personal:user-001", "to": "team:backend", "count": 30},
-      {"from": "personal:user-002", "to": "team:backend", "count": 15}
+      {"from": "personal/user-001", "to": "team/backend", "count": 30},
+      {"from": "personal/user-002", "to": "team/backend", "count": 15}
     ]
   },
   "timeline": [
@@ -1651,8 +1651,8 @@ curl "http://localhost:8080/v1/stats/sharing?days=7" \
       "agent_id": "coder",
       "total_memories": 90,
       "memories_by_space": {
-        "personal:user-001": 60,
-        "team:backend": 30
+        "personal/user-001": 60,
+        "team/backend": 30
       },
       "top_categories": [
         {"category": "entities", "count": 40},
@@ -1666,7 +1666,7 @@ curl "http://localhost:8080/v1/stats/sharing?days=7" \
       "agent_id": "writer",
       "total_memories": 40,
       "memories_by_space": {
-        "personal:user-001": 40
+        "personal/user-001": 40
       },
       "top_categories": [
         {"category": "events", "count": 20}
@@ -1821,7 +1821,7 @@ curl "http://localhost:8080/v1/stats/decay?memory_id=550e8400-e29b-41d4-a716-446
       "importance": 0.85,
       "access_count": 12,
       "memory_type": "insight",
-      "space_id": "personal:user-001"
+      "space_id": "personal/user-001"
     },
     {
       "id": "mem-002",
@@ -1831,7 +1831,7 @@ curl "http://localhost:8080/v1/stats/decay?memory_id=550e8400-e29b-41d4-a716-446
       "importance": 0.7,
       "access_count": 5,
       "memory_type": "insight",
-      "space_id": "personal:user-001"
+      "space_id": "personal/user-001"
     }
   ],
   "edges": [
@@ -1846,7 +1846,7 @@ curl "http://localhost:8080/v1/stats/decay?memory_id=550e8400-e29b-41d4-a716-446
       "source": "mem-original",
       "target": "mem-shared-copy",
       "relation_type": "shared_from",
-      "context_label": "personal:user-001 → team:backend",
+      "context_label": "personal/user-001 → team/backend",
       "cross_space": true
     }
   ],
@@ -2217,9 +2217,9 @@ Memory 对象包含 28 个字段：
 
 | 值 | 说明 | ID 前缀 |
 |----|------|---------|
-| `personal` | 个人空间 | `personal:` |
-| `team` | 团队空间 | `team:` |
-| `organization` | 组织空间 | `org:` |
+| `personal` | 个人空间 | `personal/` |
+| `team` | 团队空间 | `team/` |
+| `organization` | 组织空间 | `org/` |
 
 **MemberRole（成员角色）**:
 

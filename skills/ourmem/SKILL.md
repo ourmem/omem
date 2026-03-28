@@ -243,9 +243,9 @@ ourmem organizes memories into three-tier Spaces for collective intelligence:
 
 | Type | Prefix | Scope |
 |------|--------|-------|
-| Personal | `personal:` | One user, multiple agents |
+| Personal | `personal/` | One user, multiple agents |
 | Team | `team:` | Multiple users |
-| Organization | `org:` | Company-wide |
+| Organization | `org/` | Company-wide |
 
 **Roles:** `admin` (full control), `member` (read/write), `reader` (read-only)
 

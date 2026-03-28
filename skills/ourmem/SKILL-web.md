@@ -310,7 +310,7 @@ Share a memory:
 curl -sX POST "https://api.ourmem.ai/v1/memories/MEMORY_ID/share" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: YOUR_API_KEY" \
-  -d '{"target_space": "team:SPACE_ID"}'
+  -d '{"target_space": "team/SPACE_ID"}'
 ```
 
 ## Memory Space (visual interface)
