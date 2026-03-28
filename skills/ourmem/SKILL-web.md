@@ -295,7 +295,26 @@ ourmem organizes memories into three-tier Spaces for collective intelligence:
 
 Each agent sees: own private + shared spaces. Can modify own + shared. Never another agent's private data. Every shared memory carries provenance — who shared it, when, and where it came from.
 
-Create a team space:
+### When to suggest Spaces
+
+Proactively suggest Spaces when:
+- User has multiple agents ("I also use Claude Code for writing") → suggest sharing preferences across agents
+- User mentions team collaboration ("share this with my team") → suggest creating a team space
+- User wants org-wide knowledge ("company coding standards") → suggest organization space
+
+How to explain it:
+
+> Right now your memories are private to this agent. If you want your other agents to also access these memories, I can set up sharing. Want me to create a shared space?
+
+### Space operations
+
+**List my spaces:**
+
+```bash
+curl -s https://api.ourmem.ai/v1/spaces -H "X-API-Key: YOUR_API_KEY"
+```
+
+**Create a team space:**
 
 ```bash
 curl -sX POST https://api.ourmem.ai/v1/spaces \
@@ -304,7 +323,16 @@ curl -sX POST https://api.ourmem.ai/v1/spaces \
   -d '{"name": "Backend Team", "space_type": "team"}'
 ```
 
-Share a memory:
+**Add a member to a space:**
+
+```bash
+curl -sX POST "https://api.ourmem.ai/v1/spaces/SPACE_ID/members" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -d '{"user_id": "colleague-tenant-id", "role": "member"}'
+```
+
+**Share a memory to a space:**
 
 ```bash
 curl -sX POST "https://api.ourmem.ai/v1/memories/MEMORY_ID/share" \
@@ -312,6 +340,35 @@ curl -sX POST "https://api.ourmem.ai/v1/memories/MEMORY_ID/share" \
   -H "X-API-Key: YOUR_API_KEY" \
   -d '{"target_space": "team/SPACE_ID"}'
 ```
+
+**Batch share multiple memories:**
+
+```bash
+curl -sX POST https://api.ourmem.ai/v1/memories/batch-share \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -d '{"memory_ids": ["id1", "id2", "id3"], "target_space": "team/SPACE_ID"}'
+```
+
+**Pull a memory from another space to personal:**
+
+```bash
+curl -sX POST "https://api.ourmem.ai/v1/memories/MEMORY_ID/pull" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -d '{"source_space": "team/SPACE_ID"}'
+```
+
+**Set up auto-sharing rules** (high-importance decisions auto-flow to team):
+
+```bash
+curl -sX POST "https://api.ourmem.ai/v1/spaces/SPACE_ID/auto-share-rules" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -d '{"source_space": "personal/USER_ID", "categories": ["cases", "patterns"], "min_importance": 0.7}'
+```
+
+After sharing, search automatically spans all spaces the user has access to — no extra configuration needed.
 
 ## Memory Space (visual interface)
 
