@@ -220,11 +220,13 @@ ourmem is ready.
 
 WHAT YOU CAN DO NOW
 
-1. Just talk normally — I'll automatically remember important things
-2. Say "remember: [something]" to explicitly save a fact
-3. Say "create a team space" to share memories between agents
-4. Say "import memories" to bring in existing memory files
-5. Visit https://ourmem.ai/space to browse and manage your memories visually
+1. Import your existing memories (recommended — say "import memories to ourmem")
+   I'll scan local files and import your history automatically.
+2. Just talk normally — I'll automatically remember important things
+3. Say "remember: [something]" to explicitly save a fact
+4. Say "create a team space" to share memories between agents
+5. Say "import memories" to bring in existing memory files
+6. Visit https://ourmem.ai/space to browse and manage your memories visually
 
 YOUR API KEY
 
@@ -389,30 +391,66 @@ ourmem provides memory analytics through the stats API:
 
 ## Memory import
 
-**From conversation history** (LLM extracts facts automatically):
+When the user says "import memories to ourmem", scan their workspace for existing memory and session files, then batch-import them via the Import API.
+
+### Auto-scan and import flow
+
+1. Detect agent_id from platform config (if available)
+2. Scan workspace for memory/session files
+3. Upload the 20 most recent files (by modification time) via `/v1/imports`
+4. Report results (imported/skipped/errors)
+
+**Paths to scan:**
+
+| Path pattern | file_type | Platform |
+|-------------|-----------|----------|
+| `./memory.json` | memory | OpenClaw |
+| `./memories.json` | memory | OpenClaw |
+| `./memories/*.json` | memory | OpenClaw |
+| `./sessions/*.json` | session | OpenClaw |
+| `./session/*.json` | session | OpenClaw |
+| `./.claude/memory/*.json` | memory | Claude Code |
+| `./MEMORY.md` | markdown | Common |
+| `./memory/*.md` | markdown | Common |
+
+### Import API
+
+**Batch import a file:**
+
+```bash
+curl -sX POST https://api.ourmem.ai/v1/imports \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -F "file=@memory.json" \
+  -F "file_type=memory" \
+  -F "agent_id=coder"
+```
+
+Supported `file_type`: `memory` (JSON array), `session` (JSON/JSONL messages), `markdown` (split by paragraphs), `jsonl` (one JSON per line).
+
+Optional fields: `agent_id`, `session_id`, `space_id` (defaults to personal space).
+
+Response:
+
+```json
+{
+  "id": "task-uuid",
+  "status": "completed",
+  "imported": 15,
+  "skipped": 2,
+  "errors": []
+}
+```
+
+### Smart ingest from conversation history
 
 ```bash
 curl -sX POST https://api.ourmem.ai/v1/memories \
   -H "Content-Type: application/json" \
   -H "X-API-Key: YOUR_API_KEY" \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "I prefer Rust for backend"},
-      {"role": "assistant", "content": "Noted!"}
-    ],
-    "mode": "smart"
-  }'
+  -d '{"messages": [{"role":"user","content":"I prefer Rust"}], "mode": "smart"}'
 ```
 
-**From files** (PDF, images, code):
-
-```bash
-curl -sX POST https://api.ourmem.ai/v1/files \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -F "file=@document.pdf"
-```
-
-**Direct fact:**
+### Direct fact
 
 ```bash
 curl -sX POST https://api.ourmem.ai/v1/memories \
