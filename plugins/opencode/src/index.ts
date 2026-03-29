@@ -4,7 +4,7 @@ import { autoRecallHook, compactingHook, keywordDetectionHook } from "./hooks.js
 import { getUserTag, getProjectTag } from "./tags.js";
 import { buildTools } from "./tools.js";
 
-export const OmemPlugin: Plugin = async ({ directory }) => {
+const OmemPlugin: Plugin = async ({ directory }) => {
   const omemClient = new OmemClient(
     process.env.OMEM_API_URL || "http://localhost:8080",
     process.env.OMEM_API_KEY || "",
@@ -25,4 +25,11 @@ export const OmemPlugin: Plugin = async ({ directory }) => {
       }
     },
   };
+};
+
+export { OmemPlugin };
+
+export default {
+  id: "ourmem",
+  server: OmemPlugin,
 };
