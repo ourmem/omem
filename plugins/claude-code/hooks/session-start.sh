@@ -18,7 +18,7 @@ Get a free key:
 Then restart Claude Code.
 """
 print(json.dumps({"hookSpecificOutput": {"SessionStart": {"additionalContext": msg.strip()}}}))')
-  echo "$CONTEXT"
+  echo "${CONTEXT:-"{}"}"
   exit 0
 fi
 
@@ -27,11 +27,12 @@ INPUT=$(read_stdin)
 RESPONSE=$(omem_get "/v1/memories?limit=20&offset=0")
 
 if echo "${RESPONSE}" | grep -q '"error"'; then
-  echo '{"hookSpecificOutput": {"SessionStart": {"additionalContext": "[ourmem] Could not load memories."}}}'
+  echo '{"hookSpecificOutput": {"SessionStart": {"additionalContext": "[ourmem] Could not load memories. Check API key and server."}}}'
   exit 0
 fi
 
-MEMORIES=$(echo "${RESPONSE}" | python3 -c '
+# Build memory context
+CONTEXT=$(echo "${RESPONSE}" | python3 -c '
 import sys, json
 from datetime import datetime, timezone
 
@@ -39,11 +40,11 @@ try:
     data = json.load(sys.stdin)
     memories = data.get("memories", [])
 except Exception:
-    print("[ourmem] No memories available.")
-    sys.exit(0)
+    memories = []
 
 if not memories:
-    print("[ourmem] No memories stored yet.")
+    result = {"hookSpecificOutput": {"SessionStart": {"additionalContext": "[ourmem] No memories stored yet."}}}
+    print(json.dumps(result))
     sys.exit(0)
 
 now = datetime.now(timezone.utc)
@@ -77,13 +78,10 @@ for m in memories:
     line += f" {content}"
     lines.append(line)
 
-print("\n".join(lines))
-' 2>/dev/null || echo "[ourmem] No memories available.")
-
-CONTEXT=$(echo "${MEMORIES}" | python3 -c '
-import sys, json
-text = sys.stdin.read()
-print(json.dumps(text))
+text = "\n".join(lines)
+result = {"hookSpecificOutput": {"SessionStart": {"additionalContext": text}}}
+print(json.dumps(result))
 ' 2>/dev/null)
 
-echo "{\"hookSpecificOutput\": {\"SessionStart\": {\"additionalContext\": ${CONTEXT}}}}"
+# Fallback: if python3 failed, output valid JSON
+echo "${CONTEXT:-"{}"}"
