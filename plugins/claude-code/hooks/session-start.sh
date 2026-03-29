@@ -4,7 +4,23 @@ set -euo pipefail
 SCRIPT_DIR="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
 source "${SCRIPT_DIR}/hooks/common.sh"
 
-[[ -z "$OMEM_API_KEY" ]] && echo '{}' && exit 0
+if [[ -z "$OMEM_API_KEY" ]]; then
+  CONTEXT=$(python3 -c '
+import json
+msg = """[ourmem] OMEM_API_KEY not set — memory is disabled.
+
+To enable persistent memory, set your API key:
+  export OMEM_API_KEY="your-key"
+
+Get a free key:
+  curl -X POST https://api.ourmem.ai/v1/tenants -H "Content-Type: application/json" -d "{}"
+
+Then restart Claude Code.
+"""
+print(json.dumps({"hookSpecificOutput": {"SessionStart": {"additionalContext": msg.strip()}}}))')
+  echo "$CONTEXT"
+  exit 0
+fi
 
 INPUT=$(read_stdin)
 
