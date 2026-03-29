@@ -194,11 +194,13 @@ Prevent this by treating the handoff as part of the setup itself, not as optiona
 
 Lifecycle hooks (automatic, no agent action needed):
 
-| Hook | Trigger | What happens |
-|------|---------|--------------|
-| SessionStart | New conversation begins | Recent relevant memories injected into context |
-| Stop / SessionEnd | Conversation ends | Key information auto-captured via smart ingest |
-| PreCompact | Before context compaction | Saves context before it's lost (Claude Code) |
+| Hook | Trigger | What happens | Platform |
+|------|---------|--------------|----------|
+| SessionStart | First message in new session | Memories + user profile injected into context (once per session, semantic search) | All |
+| Stop | Conversation ends | Last messages auto-captured via smart ingest | Claude Code |
+| PreCompact | Before context compaction | Saves memories before context is truncated | Claude Code, OpenCode |
+
+> **Note:** OpenCode does not have a session-end hook. Memory storage in OpenCode relies on the agent proactively using the `memory_store` tool.
 
 ---
 
