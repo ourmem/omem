@@ -1,6 +1,6 @@
 {
   "name": "@ourmem/openclaw",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "ourmem persistent memory plugin for OpenClaw — Memory slot + ContextEngine with 7 lifecycle hooks",
   "type": "module",
   "main": "src/index.ts",

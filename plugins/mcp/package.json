@@ -1,6 +1,6 @@
 {
   "name": "@ourmem/mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "ourmem MCP Server — persistent memory for Cursor, VS Code, Claude Desktop, and any MCP client",
   "type": "module",
   "main": "dist/index.js",
