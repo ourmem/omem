@@ -1,27 +1,34 @@
-import type { PluginAPI, ContextEngineConfig } from "./types.js";
+import type { PluginConfig, OpenClawPluginApi, ToolFactory } from "./types.js";
 import { OmemClient } from "./client.js";
-import { OmemMemoryBackend } from "./server-backend.js";
-import { OmemContextEngine } from "./context-engine.js";
-import { autoRecallHook, autoCaptureHook } from "./hooks.js";
+import { registerHooks } from "./hooks.js";
 import { buildTools } from "./tools.js";
 
-export default function omemPlugin(api: PluginAPI): void {
-  const client = new OmemClient(
-    process.env.OMEM_API_URL || "http://localhost:8080",
-    process.env.OMEM_API_KEY || "",
-  );
+const DEFAULT_API_URL = "https://api.ourmem.ai";
 
-  api.registerMemoryBackend(new OmemMemoryBackend(client));
+const toolNames = [
+  "memory_store",
+  "memory_search",
+  "memory_get",
+  "memory_update",
+  "memory_delete",
+];
 
-  for (const tool of buildTools(client)) {
-    api.registerTool(tool);
-  }
+export default {
+  id: "ourmem",
+  name: "ourmem",
+  description: "Shared persistent memory for AI agents — semantic search + auto-extraction",
+  kind: "memory",
 
-  api.registerHook("before_prompt_build", autoRecallHook(client));
-  api.on("agent_end", autoCaptureHook(client));
+  register(api: OpenClawPluginApi) {
+    const cfg = (api.pluginConfig ?? {}) as PluginConfig;
+    const apiUrl = cfg.apiUrl || process.env.OMEM_API_URL || DEFAULT_API_URL;
+    const apiKey = cfg.apiKey || process.env.OMEM_API_KEY || "";
 
-  api.registerContextEngine(
-    "omem",
-    (config: ContextEngineConfig) => new OmemContextEngine(client, config),
-  );
-}
+    const client = new OmemClient(apiUrl, apiKey);
+
+    const factory: ToolFactory = () => buildTools(client);
+    api.registerTool(factory, { names: toolNames });
+
+    registerHooks(api, client, api.logger);
+  },
+};
