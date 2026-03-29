@@ -26,8 +26,8 @@ export function buildTools(client: OmemClient, containerTags: string[]) {
           allTags,
           args.source,
         );
-        if (!result) return "Failed to store memory. The omem server may be unavailable.";
-        return `Memory stored (id: ${result.id}). Tags: [${result.tags.join(", ")}]`;
+        if (!result) return JSON.stringify({ ok: false, error: "The omem server may be unavailable." });
+        return JSON.stringify({ ok: true, id: result.id, tags: result.tags });
       },
     }),
 
@@ -53,12 +53,13 @@ export function buildTools(client: OmemClient, containerTags: string[]) {
           args.scope,
           containerTags,
         );
-        if (results.length === 0) return "No matching memories found.";
-        const lines = results.map(
-          (r, i) =>
-            `${i + 1}. [${r.score.toFixed(2)}] (id: ${r.memory.id}) ${r.memory.content.slice(0, 200)}`,
-        );
-        return lines.join("\n");
+        if (results.length === 0) return JSON.stringify({ ok: true, count: 0, results: [] });
+        const items = results.map((r) => ({
+          id: r.memory.id,
+          score: r.score,
+          content: r.memory.content.slice(0, 200),
+        }));
+        return JSON.stringify({ ok: true, count: results.length, results: items });
       },
     }),
 
@@ -69,8 +70,8 @@ export function buildTools(client: OmemClient, containerTags: string[]) {
       },
       async execute(args) {
         const memory = await client.getMemory(args.id);
-        if (!memory) return `Memory ${args.id} not found.`;
-        return JSON.stringify(memory, null, 2);
+        if (!memory) return JSON.stringify({ ok: false, error: "not found" });
+        return JSON.stringify({ ok: true, memory });
       },
     }),
 
@@ -92,8 +93,8 @@ export function buildTools(client: OmemClient, containerTags: string[]) {
           args.content,
           args.tags,
         );
-        if (!result) return `Failed to update memory ${args.id}.`;
-        return `Memory ${args.id} updated.`;
+        if (!result) return JSON.stringify({ ok: false, error: `Failed to update memory ${args.id}` });
+        return JSON.stringify({ ok: true, id: args.id });
       },
     }),
 
@@ -104,8 +105,12 @@ export function buildTools(client: OmemClient, containerTags: string[]) {
         id: tool.schema.string().describe("Memory ID to delete"),
       },
       async execute(args) {
-        await client.deleteMemory(args.id);
-        return `Memory ${args.id} deleted.`;
+        try {
+          await client.deleteMemory(args.id);
+          return JSON.stringify({ ok: true, id: args.id });
+        } catch {
+          return JSON.stringify({ ok: false, error: `Failed to delete memory ${args.id}` });
+        }
       },
     }),
   };
