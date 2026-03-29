@@ -6,10 +6,10 @@ description: |
   Collective intelligence for AI agents with Space-based sharing across agents and teams.
 
   Use when users say:
-  - "install ourmem"
-  - "setup memory"
+  - "install ourmem" / "install omem"
+  - "setup memory" / "setup omem"
   - "add memory plugin"
-  - "ourmem onboarding"
+  - "ourmem onboarding" / "omem onboarding"
   - "memory not working"
   - "remember this"
   - "save this for later"
@@ -26,10 +26,11 @@ description: |
   - "memory analytics"
   - "memory stats"
 
-  Even if the user doesn't say "ourmem", trigger when they want persistent memory,
+  Even if the user doesn't say "ourmem" or "omem", trigger when they want persistent memory,
   memory sharing between agents, memory analytics, or memory import/export.
 keywords:
   - ourmem
+  - omem
   - memory
   - persistent memory
   - agent memory
@@ -60,9 +61,9 @@ metadata:
  └─────────────────────────────────────────────────────────────┘
 ```
 
-# ourmem
+# ourmem (omem)
 
-ourmem gives AI agents shared persistent memory across sessions, devices, agents, and teams.
+ourmem (also known as **omem**) gives AI agents shared persistent memory across sessions, devices, agents, and teams.
 
 Most memory systems trap knowledge in silos. ourmem's three-tier Space architecture enables collective intelligence: knowledge flows across agents and teams with provenance tracking and quality-gated sharing. One API key reconnects everything. Hosted at `api.ourmem.ai`, nothing to deploy.
 
@@ -900,7 +901,9 @@ When presenting onboarding or recovery instructions:
 - Explain concretely that the same API key reconnects the same cloud memory on another trusted machine
 - If the user sounds worried about recovery, lead with backup/import/reconnect steps instead of API demos
 - Use the user's language (detect from conversation)
-- Brand: "ourmem" (lowercase), "Space" (capitalized), "Smart Ingest"
+- Brand: "ourmem" or "omem" (both acceptable, lowercase). "omem" is the short form — use whichever the user uses.
+- Official domain: ourmem.ai, API: api.ourmem.ai
+- "Space" (capitalized), "Smart Ingest"
 
 ---
 
