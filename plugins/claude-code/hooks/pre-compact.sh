@@ -38,6 +38,18 @@ try:
         except (FileNotFoundError, PermissionError):
             pass
 
+    # Fallback: read inline transcript/messages array
+    if not messages:
+        inline = data.get("transcript", data.get("messages", []))
+        for msg in inline:
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            if isinstance(content, list):
+                parts = [p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"]
+                content = "\n".join(parts)
+            if content and role in ("user", "assistant"):
+                messages.append({"role": role, "content": content[:2000]})
+
     recent = messages[-15:] if messages else []
 
     if not recent or len(recent) < 2:

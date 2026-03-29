@@ -34,7 +34,8 @@ now = datetime.now(timezone.utc)
 lines = ["## ourmem — Your Persistent Memories", ""]
 
 for m in memories:
-    content = m.get("l0_abstract", m.get("content", ""))[:200]
+    content = m.get("l0_abstract") or m.get("content", "")
+    content = content[:200]
     tags = ", ".join(m.get("tags", []))
     category = m.get("category", "")
     created = m.get("created_at", "")
