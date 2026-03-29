@@ -1,36 +1,48 @@
 ---
 name: ourmem
-version: 0.1.0
+version: 0.2.1
 description: |
-  Shared memory that never forgets — cloud hosted or self-deployed.
+  Shared memory that never forgets. Cloud hosted or self-deployed.
   Collective intelligence for AI agents with Space-based sharing across agents and teams.
 
-  Use this skill whenever the user mentions:
-  - "install ourmem", "setup memory", "add memory plugin", "memory not working"
-  - "remember this", "save this for later", "don't forget", "recall my preferences"
-  - "what did I say last time?", "import memories", "share memories"
-  - "ourmem onboarding", "persistent memory", "cross-session memory"
-  - "team memory", "shared memory space", "memory space", "memory analytics"
-  - "self-host memory", "deploy memory server", "collective intelligence"
-  - "memory decay", "memory stats", "agent collaboration", "knowledge sharing"
-  - Any request to persist, recall, or manage long-term memory across sessions, devices, or agents.
-  Even if the user doesn't say "ourmem" explicitly, trigger this skill when they want
-  persistent memory, memory sharing between agents, memory analytics, or memory import/export.
+  Use when users say:
+  - "install ourmem"
+  - "setup memory"
+  - "add memory plugin"
+  - "ourmem onboarding"
+  - "memory not working"
+  - "remember this"
+  - "save this for later"
+  - "don't forget"
+  - "recall preferences"
+  - "what did I say last time"
+  - "import memories"
+  - "share memories"
+  - "team memory"
+  - "shared space"
+  - "persistent memory"
+  - "cross-session memory"
+  - "collective intelligence"
+  - "memory analytics"
+  - "memory stats"
+  - "self-host memory"
+  - "deploy memory server"
 
+  Even if the user doesn't say "ourmem", trigger when they want persistent memory,
+  memory sharing between agents, memory analytics, or memory import/export.
 keywords:
   - ourmem
-  - memory plugin
+  - memory
   - persistent memory
   - agent memory
-  - install memory
-  - setup memory
-  - cloud memory
-  - self-host memory
+  - remember
+  - recall
   - space sharing
   - team memory
   - collective intelligence
   - memory analytics
   - memory decay
+  - self-host
 metadata:
   openclaw:
     emoji: "🧠"
@@ -38,55 +50,178 @@ metadata:
 
 # ourmem — Shared Memory That Never Forgets
 
-ourmem gives AI agents shared persistent memory — across sessions, devices, agents, and teams.
+ourmem gives AI agents shared persistent memory across sessions, devices, agents, and teams.
 
-Most AI memory systems trap knowledge in silos. ourmem's three-tier Space architecture enables collective intelligence: knowledge flows across agents and teams with provenance tracking and quality-gated sharing. One API key reconnects everything. Available as hosted (api.ourmem.ai) or self-deployed.
+Most memory systems trap knowledge in silos. ourmem's three-tier Space architecture enables collective intelligence: knowledge flows across agents and teams with provenance tracking and quality-gated sharing. One API key reconnects everything. Available as hosted (`api.ourmem.ai`) or self-deployed.
 
-## When to activate
+---
 
-Trigger this skill when the user wants to:
+## Trigger phrases
 
-- Persist information across sessions ("remember this", "save this for later")
-- Recall something from before ("what did I say last time?")
-- Share knowledge between agents or team members
-- Set up or fix the memory plugin
-- Import existing memory files
-- View memory analytics or stats
-- Manage memory spaces or sharing
+Use this skill when the user expresses intent to store, recall, share, or manage long-term memory.
 
-Don't use for temporary context, one-off tasks, or unrelated troubleshooting.
+Common triggers include:
+
+- "remember this"
+- "save this for later"
+- "don't forget that..."
+- "what did I say last time?"
+- "recall my preferences"
+- "forget that"
+- "share this with my team"
+- "import memories"
+- "setup memory"
+- "memory not working"
+- "self-host memory"
+- "deploy memory server"
+
+---
+
+## When to use this skill
+
+Use when the user wants persistent or shared memory across sessions, devices, or agents.
+
+Typical situations:
+
+- The user asks the agent to remember something for future sessions
+- The user wants to recall or reconnect to existing long-term memory
+- The user wants persistent memory instead of local/session-only memory
+- The user wants to import existing memory files into ourmem
+- The user is moving to a new machine and wants to keep the same memory
+- The user wants multiple agents or workflows to share the same memory space
+- The user mentions team collaboration or shared knowledge
+- The user wants memory analytics or stats
+- The user wants to self-host the memory server
+
+## When NOT to use this skill
+
+Do not use for:
+
+- Temporary conversation context that only matters right now
+- One-off tasks that don't need long-term memory
+- Troubleshooting unrelated to ourmem setup, import, or reconnection
+
+---
 
 ## What to remember / skip
 
-**Remember:** preferences, profile facts, project context, decisions, long-term instructions
-**Skip:** temp debugging, raw data dumps, passwords/tokens/secrets, content inside `<private>` tags
+Good candidates:
+
+- User preferences
+- Profile facts about the user
+- Project context or ongoing work
+- Important decisions made during conversations
+- Long-term instructions or habits
+- Architecture decisions, coding standards
+
+Avoid storing:
+
+- Temporary debugging context
+- Large data or files (use file upload instead)
+- Secrets, passwords, or API keys
+- Content inside `<private>` tags
+
+---
 
 ## Memory intent detection
 
-When the user says "remember this" / "save this" / "don't forget" — store it immediately via `memory_store` if ourmem is installed.
+If the user explicitly asks to remember something ("remember this", "save this", "don't forget"), store the information using `memory_store` if ourmem is installed.
 
-If not installed yet:
+If ourmem is not installed yet, suggest installing it:
 
 > I can set up ourmem so I'll remember this across sessions. Takes about 2 minutes. Want to do it now?
 
+---
+
+## Terminology
+
+Use this distinction consistently:
+
+| Internal term | User-facing explanation |
+|---------------|------------------------|
+| `apiKey` / `OMEM_API_KEY` | The ourmem API key. Sends as `X-API-Key` header. |
+| `API key` | Preferred user-facing term. Say "ourmem API key" or just "API key". |
+| `secret` | Treat as the same value as the API key unless the user clearly means something else. |
+| `tenant` | The workspace behind an API key. Don't use this term with users. |
+
+Short rule: `API key`, `apiKey`, and `secret` may refer to the same ourmem identifier. Prefer saying "API key" to users. Use `OMEM_API_KEY` in config examples.
+
+Security note: Treat the API key like a secret. Anyone who has it can access that ourmem space.
+
+If the user asks "What is this for?" answer plainly:
+
+> This is the API key that reconnects you to your ourmem space. Your agent uses it to save and recall memory in the right place.
+
+---
+
+## Definition of Done
+
+This task is NOT complete until ALL of the following are true:
+
+1. ourmem API key is created or verified reachable
+2. Plugin is installed for the user's platform
+3. Config is updated with correct URL and key
+4. Client is restarted
+5. Setup is verified (health + auth pass)
+6. The user has been sent the full Step 5 handoff message, including:
+   - What they can do now (import, remember, team space)
+   - API key display
+   - Recovery steps
+   - Backup plan
+
+---
+
+## Common failure mode
+
+Agents often finish the technical setup and forget to send the required final handoff message.
+Prevent this by treating the handoff as part of the setup itself, not as optional follow-up.
+
+---
+
+## What You Get
+
+| Tool | When |
+|------|------|
+| `memory_store` | Persist facts, decisions, preferences, context |
+| `memory_search` | Find memories by keywords and meaning (hybrid search) |
+| `memory_list` | List memories with filters and pagination |
+| `memory_get` | Retrieve a specific memory by ID |
+| `memory_update` | Modify existing memory content or tags |
+| `memory_forget` | Remove a memory |
+| `memory_ingest` | Smart-ingest conversation into atomic memories |
+| `memory_stats` | View memory analytics and counts |
+| `memory_profile` | Get auto-generated user profile |
+
+Lifecycle hooks (automatic, no agent action needed):
+
+| Hook | Trigger | What happens |
+|------|---------|--------------|
+| SessionStart | New conversation begins | Recent relevant memories injected into context |
+| Stop / SessionEnd | Conversation ends | Key information auto-captured via smart ingest |
+| PreCompact | Before context compaction | Saves context before it's lost (Claude Code) |
+
+---
+
 ## Onboarding
 
-### Step 0: Choose deployment mode
+### Step 0: Choose mode
 
-Ask the user before anything else:
+`[AGENT]` Ask the user before doing anything else:
 
 > How would you like to run ourmem?
 >
-> 1. **Hosted** (api.ourmem.ai) - no server to manage, start in 2 minutes
-> 2. **Self-hosted** (Docker on your machine) - full control, data stays local
+> 1. **Hosted** (api.ourmem.ai) — no server to manage, start in 2 minutes
+> 2. **Self-hosted** (Docker or binary on your machine) — full control, data stays local
 >
 > Already have an API key? Paste it and I'll reconnect you.
+>
+> Heads-up: your client will restart later in this setup. When that happens, please wait a moment, then send "Hi" to reconnect and continue.
 
 Branching:
 
-- **Hosted** -> READ `references/hosted-setup.md`, then continue from Step 1
-- **Self-hosted** -> READ `references/selfhost-setup.md`, then continue from Step 1
-- **Existing key** -> Verify it first, then skip to Step 2
+- **Hosted** -> READ `references/hosted-setup.md` for detailed setup, then continue from Step 1
+- **Self-hosted** -> READ `references/selfhost-setup.md` for server deployment + setup, then continue from Step 1
+- **Existing key** -> Verify it first (see below), then skip to Step 2
 
 If the user provides an existing API key, verify reachability:
 
@@ -97,250 +232,349 @@ curl -sf -H "X-API-Key: $API_KEY" "$API_URL/v1/memories?limit=1" \
   && echo "OK" || echo "UNREACHABLE"
 ```
 
-If OK, say: "Your ourmem API key works. I'll connect this setup to your existing memory."
-If UNREACHABLE, ask the user to double-check or create a new key.
+- If `OK`: say "Great, your existing ourmem API key is reachable. I'll connect this setup to that same memory." Then continue to **Step 2**.
+- If `UNREACHABLE`: say "I could not reach that API key. Please double-check it, or create a new one instead." Ask the user to retry or choose a fresh setup.
 
-### Step 1: Get API Key
+---
+
+### Step 1: Create API key
+
+> Skip this step if the user provided a working API key in Step 0.
+
+`[AGENT]`
 
 **Hosted:**
 
 ```bash
 curl -sX POST https://api.ourmem.ai/v1/tenants \
   -H "Content-Type: application/json" \
-  -d '{"name": "my-workspace"}'
+  -d '{"name": "my-workspace"}' | jq .
 ```
 
-Response: `{"id": "xxx", "api_key": "xxx", "status": "active"}`
-
 **Self-hosted:**
-
-Same command, but against localhost:
 
 ```bash
 curl -sX POST http://localhost:8080/v1/tenants \
   -H "Content-Type: application/json" \
-  -d '{"name": "my-workspace"}'
+  -d '{"name": "my-workspace"}' | jq .
 ```
 
-Tell the user:
+Response:
 
-> Your ourmem API key is ready. This key reconnects you to the same memory from any machine. Treat it like a password — never share it publicly.
+```json
+{
+  "id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "api_key": "xxx-xxx-xxx",
+  "status": "active"
+}
+```
 
-### Step 2: Install plugin
+Save the `api_key` value as `API_KEY`.
 
-Detect the current platform and install. For detailed per-platform instructions, READ `references/hosted-setup.md` or `references/selfhost-setup.md`.
+When explaining to the user, say:
 
-**OpenCode:** `"plugin": ["@ourmem/opencode"]` in opencode.json + env vars
-**Claude Code:** `/plugin marketplace add ourmem/omem` + env vars
-**OpenClaw:** `openclaw plugins install @ourmem/openclaw` + config
-**MCP (Cursor/VS Code/Claude Desktop):** `npx @ourmem/mcp` in MCP config
+> Your new ourmem API key is ready. This key reconnects you to the same memory from any machine.
+>
+> Important: this API key is also your secret. Never share it with anyone. If someone else gets it, they can access your memory.
 
-### Step 3: Configure
+---
 
-Replace `YOUR_API_KEY` with the actual key from Step 1. For self-hosted, replace `https://api.ourmem.ai` with `http://localhost:8080`.
+### Step 2: Detect platform and install
 
-### Step 4: Restart
+`[AGENT]` Auto-detect which platform is running. Do NOT ask the user to pick. Use this detection logic:
 
-Restart the client so the plugin loads:
+**Detection order:**
 
+1. If `claude` CLI exists in PATH, or the environment looks like Claude Code -> **Claude Code path**
+2. If `opencode.json` exists in the current directory or project root -> **OpenCode path**
+3. If `openclaw.json` exists in the current directory or project root -> **OpenClaw path**
+4. Otherwise -> **MCP path** (works with Cursor, VS Code, Claude Desktop, and others)
+
+If detection is ambiguous, ask the user which platform they're using.
+
+**Quick reference per platform:**
+
+| Platform | Install command | Config |
+|----------|----------------|--------|
+| Claude Code | `/plugin marketplace add ourmem/omem` then `/plugin install ourmem@ourmem` | `OMEM_API_URL` + `OMEM_API_KEY` env vars |
+| OpenCode | `"plugin": ["@ourmem/opencode"]` in opencode.json | `OMEM_API_URL` + `OMEM_API_KEY` env vars |
+| OpenClaw | `openclaw plugins install @ourmem/openclaw` | `openclaw.json` with apiUrl + apiKey |
+| MCP | `npx -y @ourmem/mcp` in MCP config | `OMEM_API_URL` + `OMEM_API_KEY` in env block |
+
+For detailed per-platform instructions (config file formats, jq commands, npm mirror detection for China networks), READ `references/hosted-setup.md` or `references/selfhost-setup.md` depending on the mode chosen in Step 0.
+
+---
+
+### Step 3: Restart client
+
+`[AGENT]` Tell the user a restart is needed and what to expect:
+
+> I'm restarting so the memory plugin loads. After the restart, send me a message to confirm everything is working.
+>
+> This usually takes less than a minute.
+
+Platform-specific restart:
+
+- **Claude Code**: restart the `claude` process
 - **OpenCode**: restart the `opencode` process
-- **Claude Code**: restart `claude`
-- **OpenClaw**: restart the OpenClaw gateway
-- **MCP clients**: restart the app
+- **OpenClaw**: restart the gateway
+- **MCP clients**: restart the app (Cursor, VS Code, Claude Desktop)
 
-Tell the user before restarting:
+---
 
-> I'm restarting so the memory plugin loads. Send me a message after to confirm it's working.
+### Step 4: Verify
 
-### Step 5: Verify
+`[AGENT]` After restart, run these checks:
 
 ```bash
-curl -sf "$OMEM_API_URL/health" && echo "Server OK"
-curl -sf -H "X-API-Key: $OMEM_API_KEY" "$OMEM_API_URL/v1/memories?limit=1" && echo "Auth OK"
+API_URL="${OMEM_API_URL:-https://api.ourmem.ai}"
 
-curl -sX POST "$OMEM_API_URL/v1/memories" \
-  -H "Content-Type: application/json" -H "X-API-Key: $OMEM_API_KEY" \
-  -d '{"content": "ourmem setup test", "tags": ["test"]}'
+# 1. Health check (no auth needed)
+curl -sf "$API_URL/health" && echo "Server OK"
 
-curl -s "$OMEM_API_URL/v1/memories/search?q=setup+test" -H "X-API-Key: $OMEM_API_KEY"
+# 2. Auth check
+curl -sf -H "X-API-Key: $API_KEY" "$API_URL/v1/memories?limit=1" && echo "Auth OK"
 ```
 
-Empty search results are normal for new keys — the search index builds after the first write.
+A setup is successful if:
 
-### Step 6: Handoff
+- The ourmem API is reachable (health returns OK)
+- The API key authenticates successfully (auth returns OK or empty list)
+- Empty results are acceptable for a newly created API key
 
-After successful setup, send this (translate to the user's language):
+If both pass, proceed to Step 5.
+
+If health fails: "The ourmem server seems unreachable. Check your network connection and try again."
+
+If auth fails: "Your API key didn't authenticate. Double-check the key value, or create a new one."
+
+---
+
+### Step 5: Handoff
+
+`[AGENT]` After successful setup, the agent MUST send the following structured handoff before ending the task. Do not summarize or remove any parts. Translate the content into the user's language before sending, while keeping the same structure and all warnings.
 
 ```
 ourmem is ready.
 
 WHAT YOU CAN DO NOW
 
-1. Just talk normally — I'll automatically remember important things
-2. Say "remember: [something]" to explicitly save a fact
-3. Say "create a team space" to share memories between agents
-4. Say "import memories" to bring in existing memory files
-5. Visit https://ourmem.ai/space to browse and manage your memories visually
+1. Import your existing memories (recommended)
+   Say: "import memories to ourmem"
+   I'll scan local files and import your history automatically.
 
-YOUR API KEY
+2. Just talk normally. I'll automatically remember important things.
 
-  API Key: <key>
+3. Say "remember: [something]" to explicitly save a fact.
+
+4. Say "create a team space" to share memories between agents.
+
+
+YOUR OURMEM API KEY
+
+  API Key: <your-api-key>
   Server:  <api-url>
 
-Keep this key private. Use it to reconnect from any machine or new install.
+This API key is your access key to ourmem.
+Keep it private and store it somewhere safe.
+
 
 RECOVERY
 
-Reinstall the plugin with the same API key — your memory reconnects instantly.
+Reinstall the plugin with the same API key.
+Your memory reconnects instantly.
+
+
+BACKUP PLAN
+
+Keep your original local memory/session files as backup.
+Store the API key in a password manager or secure vault.
+On a new machine: reinstall the plugin, configure the same API key, done.
 ```
 
-## Definition of Done
+Do not default to offering a synthetic write/read demo as the next step.
 
-Setup is NOT complete until all six are true:
+Preferred next-step order:
 
-1. API key created or verified reachable
-2. Plugin installed on the user's platform
-3. Configuration file updated with correct URL and key
-4. Client restarted
-5. Setup verified (health + auth + store/search)
-6. Handoff message sent with key, recovery steps, and next actions
+1. Guide the user to import historical memories
+2. Explain the recovery path for a new machine or accidental loss
+3. Explain local backup plus offsite backup
+4. Only offer a live write/read verification if the user explicitly asks
 
 ---
-
-## Tools
-
-| Tool | Purpose |
-|------|---------|
-| `memory_store` | Save facts, decisions, preferences |
-| `memory_search` | Find memories by meaning or keywords |
-| `memory_get` | Get a specific memory by ID |
-| `memory_update` | Modify content or tags |
-| `memory_delete` | Remove a memory |
-
-## Automatic hooks
-
-These fire without user action:
-
-| Hook | When | What happens |
-|------|------|--------------|
-| Session start | New conversation begins | Recent relevant memories injected into context |
-| Session end | Conversation ends | Key information auto-captured and stored |
 
 ## Smart Ingest
 
 When conversations are ingested (`"mode": "smart"`), the server runs a multi-stage pipeline:
 
-1. **LLM extraction** — extracts atomic facts classified into 6 categories (profile, preferences, entities, events, cases, patterns)
-2. **Noise filter** — regex patterns + vector prototype matching + feedback learning removes low-value content
-3. **Admission control** — 5-dimension scoring (utility, confidence, novelty, recency, type prior) gates what gets stored
-4. **7-decision reconciliation** — each fact is compared against existing memories: CREATE, MERGE, SKIP, SUPERSEDE, SUPPORT, CONTEXTUALIZE, or CONTRADICT
+1. **LLM extraction**: extracts atomic facts from conversation, classified into 6 categories (profile, preferences, entities, events, cases, patterns)
+2. **Noise filter**: regex patterns + vector prototype matching + feedback learning removes low-value content
+3. **Admission control**: 5-dimension scoring (utility, confidence, novelty, recency, type prior) gates what gets stored
+4. **7-decision reconciliation**: each fact is compared against existing memories: CREATE (new), MERGE (refine), SKIP (duplicate), SUPERSEDE (outdated), SUPPORT (reinforce), CONTEXTUALIZE (add nuance), or CONTRADICT (conflicting)
 
-The memory store gets smarter over time — contradictions are resolved, duplicates are merged, noise is filtered.
+The memory store gets smarter over time. Contradictions are resolved, duplicates are merged, noise is filtered.
 
-## Space sharing
+---
+
+## Space Sharing
 
 ourmem organizes memories into three-tier Spaces for collective intelligence:
 
-| Type | Prefix | Scope |
-|------|--------|-------|
-| Personal | `personal/` | One user, multiple agents |
-| Team | `team:` | Multiple users |
-| Organization | `org/` | Company-wide |
+| Type | Scope | Example |
+|------|-------|---------|
+| Personal | One user, multiple agents | Your Coder + Writer share preferences |
+| Team | Multiple users | Backend team shares architecture decisions |
+| Organization | Company-wide | Tech standards, security policies |
 
 **Roles:** `admin` (full control), `member` (read/write), `reader` (read-only)
 
-Each agent sees: own private + shared spaces. Can modify own + shared. Never another agent's private data. Every shared memory carries provenance — who shared it, when, and where it came from.
+Each agent sees: own private + shared spaces. Can modify own + shared. Never another agent's private data. Every shared memory carries provenance: who shared it, when, and where it came from.
 
-For detailed Space API, READ `references/api-quick-ref.md`.
+Proactively suggest Spaces when:
 
-## Memory Space (visual interface)
+- User has multiple agents -> suggest sharing preferences across agents
+- User mentions team collaboration -> suggest creating a team space
+- User wants org-wide knowledge -> suggest organization space
 
-Users can browse, search, and manage memories visually at **https://ourmem.ai/space** — see how memories connect, evolve, and decay over time.
+For Space API operations (create, add members, share, pull, batch share), READ `references/api-quick-ref.md`.
+
+---
+
+## Memory Import
+
+When the user says "import memories to ourmem", scan their workspace for existing memory and session files, then batch-import them.
+
+**Auto-scan flow:**
+
+1. Detect `agent_id` from platform config (if available)
+2. Scan workspace for memory/session files
+3. Upload the 20 most recent files (by modification time) via `/v1/imports`
+4. Upload in parallel for speed
+5. Report results (imported/skipped/errors)
+
+**Paths to scan:**
+
+| Path pattern | file_type | Platform |
+|-------------|-----------|----------|
+| `./memory.json` | memory | OpenClaw |
+| `./memories.json` | memory | OpenClaw |
+| `./memories/*.json` | memory | OpenClaw |
+| `./sessions/*.json` | session | OpenClaw |
+| `./.claude/memory/*.json` | memory | Claude Code |
+| `./MEMORY.md` | markdown | Common |
+| `./memory/*.md` | markdown | Common |
+
+**Import API:**
+
+```bash
+curl -sX POST "$API_URL/v1/imports" -H "X-API-Key: $API_KEY" \
+  -F "file=@memory.json" -F "file_type=memory" -F "strategy=auto"
+```
+
+**Strategy parameter** controls how content is chunked: `auto` (default, heuristic detection), `atomic` (short facts, minimal LLM), `section` (split by headings), `document` (entire file as one chunk).
+
+**Cross-reconcile** (discover relations via vector similarity):
+
+```bash
+curl -sX POST "$API_URL/v1/imports/cross-reconcile" -H "X-API-Key: $API_KEY"
+```
+
+For full import API details (progress tracking, intelligence triggers, rollback), READ `references/api-quick-ref.md`.
+
+---
 
 ## Analytics
 
 Memory analytics through the stats API:
 
-- **Overview** (`/v1/stats`) — totals by type, category, tier, space, agent + timeline
-- **Space overview** (`/v1/stats/spaces`) — per-space stats, member contributions
-- **Sharing flow** (`/v1/stats/sharing`) — who shared what, where, when
-- **Agent activity** (`/v1/stats/agents`) — per-agent memory creation, search counts
-- **Tag frequency** (`/v1/stats/tags`) — tag usage across spaces
-- **Decay curves** (`/v1/stats/decay?memory_id=X`) — Weibull decay visualization
-- **Relation graph** (`/v1/stats/relations`) — memory relationship network
-- **Server config** (`/v1/stats/config`) — decay parameters, retrieval settings
+- **Overview** (`/v1/stats`): totals by type, category, tier, space, agent + timeline
+- **Space overview** (`/v1/stats/spaces`): per-space stats, member contributions
+- **Sharing flow** (`/v1/stats/sharing`): who shared what, where, when
+- **Agent activity** (`/v1/stats/agents`): per-agent memory creation, search counts
+- **Tag frequency** (`/v1/stats/tags`): tag usage across spaces
+- **Decay curves** (`/v1/stats/decay?memory_id=X`): Weibull decay visualization
+- **Relation graph** (`/v1/stats/relations`): memory relationship network
+- **Server config** (`/v1/stats/config`): decay parameters, retrieval settings
 
-## Memory import
-
-**From conversation history** (LLM extracts facts automatically):
-
-```bash
-curl -sX POST "$OMEM_API_URL/v1/memories" \
-  -H "Content-Type: application/json" -H "X-API-Key: $OMEM_API_KEY" \
-  -d '{"messages": [{"role":"user","content":"I prefer Rust"}], "mode": "smart"}'
-```
-
-**From files** (PDF, images, code):
-
-```bash
-curl -sX POST "$OMEM_API_URL/v1/files" -H "X-API-Key: $OMEM_API_KEY" -F "file=@doc.pdf"
-```
-
-**Batch import** (with adaptive strategy):
-
-```bash
-curl -sX POST "$OMEM_API_URL/v1/imports" -H "X-API-Key: $OMEM_API_KEY" \
-  -F "file=@memory.json" -F "file_type=memory" -F "strategy=auto"
-```
-
-Strategy parameter controls chunking: `auto` (default, heuristic detection), `atomic` (short facts, minimal LLM), `section` (split by headings), `document` (entire file as one chunk).
-
-The `content` field preserves original source text — embeddings and BM25 index are built from original text for content fidelity and language preservation.
-
-**Cross-reconcile** (discover relations via vector similarity):
-
-```bash
-curl -sX POST "$OMEM_API_URL/v1/imports/cross-reconcile" -H "X-API-Key: $OMEM_API_KEY"
-```
-
-**Direct fact:**
-
-```bash
-curl -sX POST "$OMEM_API_URL/v1/memories" \
-  -H "Content-Type: application/json" -H "X-API-Key: $OMEM_API_KEY" \
-  -d '{"content": "User prefers dark mode", "tags": ["preference"]}'
-```
+---
 
 ## Security
 
-- **Tenant isolation** — every API call scoped via X-API-Key. Data physically separated per tenant.
-- **Privacy protection** — `<private>` tag redaction strips sensitive content before storage.
-- **Admission control** — 5-dimension scoring gate rejects low-quality data before storage.
-- **Open source** — Apache-2.0 licensed plugins. Audit every line of code.
+- **Tenant isolation**: every API call is scoped to your tenant via X-API-Key. Data is physically separated per tenant.
+- **Privacy protection**: `<private>` tag redaction strips sensitive content before storage.
+- **Admission control**: 5-dimension scoring gate rejects low-quality or noisy data before it enters the memory store.
+- **Open source**: Apache-2.0 licensed plugins. Audit every line of code.
 
-## Communication style
+---
 
-- Say "API key", not "tenant ID" or "secret"
-- Explain that the API key reconnects memory from any machine
-- Warn that the key is secret — never share publicly
+## Communication Style
+
+When presenting onboarding or recovery instructions:
+
+- Use plain product language, not backend vocabulary
+- Prefer "API key" or "ourmem API key"
+- Explain concretely that the same API key reconnects the same cloud memory on another trusted machine
+- If the user sounds worried about recovery, lead with backup/import/reconnect steps instead of API demos
 - Use the user's language (detect from conversation)
 - Brand: "ourmem" (lowercase), "Space" (capitalized), "Smart Ingest"
+
+---
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
-| Plugin not loading | Check config has correct `apiUrl`/`serverUrl` and `apiKey` |
-| Connection refused | Verify server is running: `curl $OMEM_API_URL/health` |
-| 401 Unauthorized | Check API key; try creating a new tenant |
-| 404 on API call | URL path should start with `/v1/` |
+| Plugin not loading | Check config has correct `apiUrl` / `OMEM_API_URL` and `apiKey` / `OMEM_API_KEY` |
+| Plugin install hangs or fails on China network | Re-run install with `NPM_CONFIG_REGISTRY=https://registry.npmmirror.com` |
+| Connection refused | Server may be down. Try `curl $OMEM_API_URL/health` and retry in a minute |
+| 401 Unauthorized | API key is wrong. Verify the key or create a new tenant via `POST /v1/tenants` |
+| 404 on API call | URL path should start with `/v1/`. Check the endpoint table below |
 | npm install hangs | Use mirror: `NPM_CONFIG_REGISTRY=https://registry.npmmirror.com` |
-| No memories returned | Normal for new keys — store one first, then search |
-| Search returns empty | Index builds after first write — wait a moment and retry |
+| No memories returned | Normal for new keys. Store one first, then search |
+| Search returns empty | Index builds after first write. Wait a moment and retry |
+| Existing API key unreachable | Re-check the value for typos; confirm network access to the server |
 | Embedding errors | Check `OMEM_EMBED_PROVIDER` on the server; use `noop` for testing |
 
-## API quick reference
+---
 
-For the full endpoint list and curl examples, READ `references/api-quick-ref.md`.
+## API Reference
+
+Base: `https://api.ourmem.ai` (hosted) or `http://localhost:8080` (self-hosted)
+Auth: `X-API-Key: <api-key>` header on all requests (except `/health` and `POST /v1/tenants`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check (no auth) |
+| POST | `/v1/tenants` | Create workspace, get API key |
+| POST | `/v1/memories` | Store memory or smart-ingest conversation |
+| GET | `/v1/memories/search?q=` | Hybrid search (vector + keyword) |
+| GET | `/v1/memories?limit=20` | List with filters + pagination |
+| GET | `/v1/memories/:id` | Get single memory |
+| PUT | `/v1/memories/:id` | Update memory |
+| DELETE | `/v1/memories/:id` | Soft delete |
+| POST | `/v1/memories/batch-delete` | Batch delete by IDs or filter |
+| DELETE | `/v1/memories/all` | Clear all (requires X-Confirm header) |
+| POST | `/v1/imports` | Batch import file |
+| POST | `/v1/imports/cross-reconcile` | Discover relations via vector similarity |
+| GET | `/v1/profile` | User profile (static + dynamic) |
+| POST | `/v1/spaces` | Create shared space |
+| GET | `/v1/spaces` | List accessible spaces |
+| POST | `/v1/spaces/:id/members` | Add member to space |
+| POST | `/v1/memories/:id/share` | Share to a space |
+| POST | `/v1/memories/:id/pull` | Pull from another space |
+| POST | `/v1/memories/batch-share` | Batch share multiple memories |
+| POST | `/v1/files` | Upload file (PDF/image/video/code) |
+| GET | `/v1/stats` | Global stats |
+| GET | `/v1/stats/*` | Spaces, sharing, agents, tags, decay, relations, config |
+
+For full endpoint details with curl examples, READ `references/api-quick-ref.md`.
 
 For the complete API documentation (35 endpoints), READ `docs/API.md`.
+
+---
+
+## Update
+
+Do not set up automatic daily self-updates for this skill.
+
+Only update the local skill file when the user or maintainer explicitly asks for a refresh from a reviewed source.
