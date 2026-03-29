@@ -1,5 +1,5 @@
 <p align="center">
-  <strong>🧠 ourmem</strong><br/>
+  <strong>OMEM</strong><br/>
   Shared Memory That Never Forgets
 </p>
 
