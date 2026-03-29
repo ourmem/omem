@@ -1,6 +1,13 @@
 {
   "name": "ourmem",
-  "description": "Persistent memory for Claude Code — powered by ourmem",
-  "hooks": "hooks/",
-  "skills": "skills/"
+  "description": "Persistent memory for Claude Code — memories survive across sessions, projects, and machines",
+  "version": "0.2.1",
+  "author": {
+    "name": "ourmem",
+    "email": "hi@ourmem.ai"
+  },
+  "homepage": "https://ourmem.ai",
+  "repository": "https://github.com/ourmem/omem",
+  "license": "Apache-2.0",
+  "keywords": ["memory", "persistent", "agent-memory", "context"]
 }

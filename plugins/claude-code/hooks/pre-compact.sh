@@ -38,7 +38,7 @@ try:
         except (FileNotFoundError, PermissionError):
             pass
 
-    recent = messages[-10:] if messages else []
+    recent = messages[-15:] if messages else []
 
     if not recent or len(recent) < 2:
         sys.exit(0)
@@ -46,7 +46,7 @@ try:
     print(json.dumps({
         "messages": recent,
         "mode": "smart",
-        "tags": ["auto-captured", "claude-code"],
+        "tags": ["pre-compact", "claude-code"],
         "source": "claude-code"
     }))
 except Exception:

@@ -1,51 +1,100 @@
-# omem — Claude Code Plugin
+# ourmem — Claude Code Plugin
 
-Persistent memory for Claude Code, powered by omem.
+Persistent memory for Claude Code — memories survive across sessions, projects, and machines.
+
+## Installation
+
+### Marketplace (recommended)
+
+```bash
+/plugin marketplace add ourmem/omem
+```
+
+### Local development
+
+```bash
+claude --plugin-dir ./plugins/claude-code
+```
 
 ## Setup
 
-1. Set environment variables:
+Set your environment variables:
 
 ```bash
-export OMEM_API_URL="http://localhost:8080"
 export OMEM_API_KEY="your-api-key"
+export OMEM_API_URL="https://api.ourmem.ai"  # optional, this is the default
 ```
 
-2. Install the plugin by symlinking into your Claude Code plugins directory:
+Get an API key at [ourmem.ai](https://ourmem.ai) or self-host:
 
 ```bash
-ln -s /path/to/plugins/claude-code ~/.claude/plugins/omem
+curl -sX POST https://api.ourmem.ai/v1/tenants \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-workspace"}' | jq .api_key
 ```
 
-Or copy the plugin directory:
-
-```bash
-cp -r plugins/claude-code ~/.claude/plugins/omem
-```
-
-## How It Works
+## What It Does
 
 ### Automatic Hooks
 
-- **SessionStart** — Loads the 20 most recent memories and injects them as context
-- **Stop** — Captures the last assistant message (if >50 chars) and stores it as a memory
+| Hook | Trigger | Effect |
+|------|---------|--------|
+| **SessionStart** | New session begins | Loads 20 most recent memories and injects them as context |
+| **Stop** | Session ends | Sends recent conversation to smart-ingest for automatic memory extraction |
+| **PreCompact** | Before context compaction | Saves conversation messages before they're compacted away |
 
-### On-Demand Skills
+### MCP Tools (on-demand)
 
-- **memory-recall** — Search memories by query
-- **memory-store** — Manually save a memory
+The plugin bundles the `@ourmem/mcp` server, giving Claude these tools:
+
+| Tool | Purpose |
+|------|---------|
+| `memory_store` | Save facts, decisions, preferences |
+| `memory_search` | Semantic + keyword hybrid search |
+| `memory_get` | Retrieve memory by ID |
+| `memory_update` | Modify existing memory |
+| `memory_delete` | Remove a memory |
+
+### Skills
+
+| Skill | Trigger |
+|-------|---------|
+| `/ourmem:memory-recall` | Search memories by query |
+| `/ourmem:memory-store` | Manually save a memory |
 
 ## API Endpoints Used
 
-| Endpoint | Method | Purpose |
+| Endpoint | Method | Used By |
 |----------|--------|---------|
-| `/v1/memories?limit=20` | GET | Load recent memories |
-| `/v1/memories` | POST | Store a new memory |
-| `/v1/memories/search?q=...` | GET | Search memories |
+| `/v1/memories?limit=20` | GET | SessionStart hook |
+| `/v1/memories` | POST | Stop + PreCompact hooks (smart-ingest) |
+| `/v1/memories/search?q=...` | GET | memory-recall skill |
+| `/v1/memories` | POST | memory-store skill |
 
 ## Requirements
 
 - `bash` 4+
 - `curl`
-- `python3` (for JSON processing)
-- Running omem-server instance
+- `python3` (for JSON processing in hooks)
+- `OMEM_API_KEY` environment variable set
+
+## Plugin Structure
+
+```
+plugins/claude-code/
+├── .claude-plugin/
+│   └── plugin.json          # Plugin manifest
+├── .mcp.json                # MCP server config
+├── hooks/
+│   ├── hooks.json           # Hook event definitions
+│   ├── common.sh            # Shared HTTP utilities
+│   ├── session-start.sh     # SessionStart hook
+│   ├── stop.sh              # Stop hook (smart-ingest)
+│   └── pre-compact.sh       # PreCompact hook
+├── skills/
+│   ├── memory-recall/
+│   │   └── SKILL.md
+│   └── memory-store/
+│       └── SKILL.md
+└── README.md
+```

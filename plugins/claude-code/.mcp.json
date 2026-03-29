@@ -1,0 +1,10 @@
+{
+  "ourmem": {
+    "command": "npx",
+    "args": ["-y", "@ourmem/mcp"],
+    "env": {
+      "OMEM_API_KEY": "${OMEM_API_KEY}",
+      "OMEM_API_URL": "${OMEM_API_URL:-https://api.ourmem.ai}"
+    }
+  }
+}

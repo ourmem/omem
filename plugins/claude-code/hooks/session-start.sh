@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/common.sh"
+SCRIPT_DIR="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
+source "${SCRIPT_DIR}/hooks/common.sh"
+
+[[ -z "$OMEM_API_KEY" ]] && echo '{}' && exit 0
 
 INPUT=$(read_stdin)
 
 RESPONSE=$(omem_get "/v1/memories?limit=20&offset=0")
 
 if echo "${RESPONSE}" | grep -q '"error"'; then
-  echo '{"hookSpecificOutput": {"SessionStart": {"additionalContext": "[omem] Failed to load memories."}}}'
+  echo '{"hookSpecificOutput": {"SessionStart": {"additionalContext": "[ourmem] Could not load memories."}}}'
   exit 0
 fi
 
@@ -21,19 +23,20 @@ try:
     data = json.load(sys.stdin)
     memories = data.get("memories", [])
 except Exception:
-    print("[omem] No memories available.")
+    print("[ourmem] No memories available.")
     sys.exit(0)
 
 if not memories:
-    print("[omem] No memories stored yet.")
+    print("[ourmem] No memories stored yet.")
     sys.exit(0)
 
 now = datetime.now(timezone.utc)
-lines = ["## omem — Recent Memories", ""]
+lines = ["## ourmem — Your Persistent Memories", ""]
 
 for m in memories:
-    content = m.get("content", "")[:500]
+    content = m.get("l0_abstract", m.get("content", ""))[:200]
     tags = ", ".join(m.get("tags", []))
+    category = m.get("category", "")
     created = m.get("created_at", "")
     age = ""
     if created:
@@ -50,13 +53,15 @@ for m in memories:
             age = created[:10]
 
     line = f"- [{age}]"
+    if category:
+        line += f" ({category})"
     if tags:
-        line += f" ({tags})"
+        line += f" [{tags}]"
     line += f" {content}"
     lines.append(line)
 
 print("\n".join(lines))
-' 2>/dev/null || echo "[omem] No memories available.")
+' 2>/dev/null || echo "[ourmem] No memories available.")
 
 CONTEXT=$(echo "${MEMORIES}" | python3 -c '
 import sys, json
