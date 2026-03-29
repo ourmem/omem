@@ -1,12 +1,13 @@
-import type { Event, Model, UserMessage, Part } from "@opencode-ai/sdk";
+import type { Model, UserMessage, Part } from "@opencode-ai/sdk";
 import type { OmemClient, SearchResult } from "./client.js";
 import { detectKeyword, KEYWORD_NUDGE } from "./keywords.js";
-import { stripPrivateContent, isFullyPrivate } from "./privacy.js";
 
 const MAX_RECALL_RESULTS = 10;
 const MAX_CONTENT_LENGTH = 500;
 
 const keywordDetectedSessions = new Set<string>();
+const injectedSessions = new Set<string>();
+const firstMessages = new Map<string, string>();
 
 function formatRelativeAge(isoDate: string): string {
   const diffMs = Date.now() - new Date(isoDate).getTime();
@@ -72,9 +73,14 @@ export function autoRecallHook(client: OmemClient, containerTags: string[]) {
     input: { sessionID?: string; model: Model },
     output: { system: string[] },
   ) => {
+    // Only inject on first message of each session
+    if (!input.sessionID || injectedSessions.has(input.sessionID)) return;
+    injectedSessions.add(input.sessionID);
+
     try {
+      const query = firstMessages.get(input.sessionID) || "*";
       const results = await client.searchMemories(
-        "*",
+        query,
         MAX_RECALL_RESULTS,
         undefined,
         containerTags,
@@ -84,7 +90,17 @@ export function autoRecallHook(client: OmemClient, containerTags: string[]) {
         output.system.push(block);
       }
 
-      if (input.sessionID && keywordDetectedSessions.has(input.sessionID)) {
+      const profile = await client.getProfile();
+      if (profile) {
+        const profileBlock = [
+          "<omem-profile>",
+          JSON.stringify(profile, null, 2),
+          "</omem-profile>",
+        ].join("\n");
+        output.system.push(profileBlock);
+      }
+
+      if (keywordDetectedSessions.has(input.sessionID)) {
         output.system.push(KEYWORD_NUDGE);
         keywordDetectedSessions.delete(input.sessionID);
       }
@@ -104,32 +120,27 @@ export function keywordDetectionHook() {
       .map((p) => p.text)
       .join(" ");
 
+    // Store first message for semantic search
+    if (!firstMessages.has(input.sessionID)) {
+      firstMessages.set(input.sessionID, textContent);
+    }
+
     if (detectKeyword(textContent)) {
       keywordDetectedSessions.add(input.sessionID);
     }
   };
 }
 
-export function captureEventHandler(client: OmemClient, containerTags: string[]) {
-  return async ({ event }: { event: Event }) => {
-    if (event.type !== "session.idle") return;
-
+export function compactingHook(client: OmemClient, containerTags: string[]) {
+  return async (
+    _input: { sessionID?: string },
+    output: { context: string[]; prompt?: string },
+  ) => {
     try {
-      const recent = await client.listRecent(20);
-      if (recent.length === 0) return;
-
-      const messages = recent
-        .filter((m) => !isFullyPrivate(m.content))
-        .map((m) => ({
-          role: "assistant",
-          content: stripPrivateContent(m.content),
-        }));
-
-      if (messages.length > 0) {
-        await client.ingestMessages(messages, {
-          mode: "smart",
-          tags: containerTags,
-        });
+      const results = await client.searchMemories("*", 20, undefined, containerTags);
+      const block = buildContextBlock(results);
+      if (block) {
+        output.context.push(block);
       }
     } catch {
       // intentionally silent
