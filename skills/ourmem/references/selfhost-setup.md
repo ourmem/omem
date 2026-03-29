@@ -2,7 +2,7 @@
 
 API Base: `http://localhost:8080` (or your custom host)
 
-Self-hosting gives you full control over your data. Everything stays on your infrastructure. You need Docker (or the binary) and an S3-compatible store.
+Self-hosting gives you full control over your data. Everything stays on your infrastructure. You need Docker (or the binary) and optionally an object storage backend.
 
 ## Prerequisites
 
@@ -11,10 +11,29 @@ Self-hosting gives you full control over your data. Everything stays on your inf
 
 ## Option A: Docker (recommended)
 
-### Start the server
+### Quick one-liner
 
 ```bash
-git clone https://github.com/yhyyz/omem.git
+# Minimal (BM25 search only, no embedding API needed)
+docker run -d --name omem -p 8080:8080 ghcr.io/ourmem/omem-server:latest
+
+# With Bedrock embedding (recommended, needs AWS credentials)
+docker run -d --name omem -p 8080:8080 \
+  -e OMEM_EMBED_PROVIDER=bedrock \
+  -e AWS_REGION=us-east-1 \
+  ghcr.io/ourmem/omem-server:latest
+
+# With OpenAI-compatible embedding
+docker run -d --name omem -p 8080:8080 \
+  -e OMEM_EMBED_PROVIDER=openai-compatible \
+  -e OMEM_EMBED_API_KEY=sk-xxx \
+  ghcr.io/ourmem/omem-server:latest
+```
+
+### From source repo
+
+```bash
+git clone https://github.com/ourmem/omem.git
 cd omem
 cp .env.example .env
 docker-compose up -d
@@ -27,24 +46,6 @@ This starts two services:
 | omem-server | 8080 | REST API |
 | MinIO | 9000/9001 | S3-compatible storage (dev mode) |
 
-### Quick one-liner (no git clone)
-
-If you just want the server running without cloning the repo:
-
-```bash
-docker run -d --name omem \
-  -p 8080:8080 \
-  -e OMEM_EMBED_PROVIDER=noop \
-  -e OMEM_S3_BUCKET=omem-data \
-  -e AWS_ENDPOINT_URL=http://minio:9000 \
-  -e AWS_ACCESS_KEY_ID=minioadmin \
-  -e AWS_SECRET_ACCESS_KEY=minioadmin \
-  -e AWS_REGION=us-east-1 \
-  omem-server:latest
-```
-
-Note: this needs a running MinIO or S3-compatible store. For production, point to real S3.
-
 ### Verify the server
 
 ```bash
@@ -52,20 +53,30 @@ curl http://localhost:8080/health
 # -> {"status":"ok"}
 ```
 
-## Option B: Binary
+## Option B: Pre-built Binary
 
-Download the pre-built binary for your platform from the GitHub releases page:
+Two release artifacts are available:
+
+| File | Build | LLM Support |
+|------|-------|-------------|
+| `omem-server-vX.Y.Z-linux-amd64.tar.gz` | musl static | OpenAI-compatible (DashScope, Ollama, etc) |
+| `omem-server-vX.Y.Z-linux-amd64-bedrock.tar.gz` | glibc dynamic | All above + AWS Bedrock |
+
+Download from the [GitHub releases page](https://github.com/ourmem/omem/releases):
 
 ```bash
-# Download (replace with actual release URL)
-curl -LO https://github.com/ourmem/omem/releases/latest/download/omem-server-linux-amd64
-chmod +x omem-server-linux-amd64
+# musl static binary (runs on any Linux x86_64, zero dependencies)
+curl -LO https://github.com/ourmem/omem/releases/latest/download/omem-server-vX.Y.Z-linux-amd64.tar.gz
+tar xzf omem-server-vX.Y.Z-linux-amd64.tar.gz
+chmod +x omem-server
 
 # Run
 OMEM_PORT=8080 \
 OMEM_EMBED_PROVIDER=noop \
-./omem-server-linux-amd64
+./omem-server
 ```
+
+Replace `vX.Y.Z` with the actual version number from the releases page.
 
 ## Option C: Build from source (musl static binary)
 
@@ -78,7 +89,7 @@ RUSTFLAGS="-C target-feature=+crt-static -C relocation-model=static" \
   cargo build --release --target x86_64-unknown-linux-musl \
   -p omem-server --no-default-features
 
-# Binary: target/x86_64-unknown-linux-musl/release/omem-server (182MB, statically linked)
+# Binary: target/x86_64-unknown-linux-musl/release/omem-server (~182MB, statically linked)
 ```
 
 Note: `--no-default-features` disables AWS Bedrock support. Use `OMEM_EMBED_PROVIDER=openai-compatible` instead (e.g. DashScope, OpenAI).
@@ -90,6 +101,31 @@ gzip -c target/x86_64-unknown-linux-musl/release/omem-server > omem-server.gz
 scp omem-server.gz user@server:/opt/
 ssh user@server "gunzip /opt/omem-server.gz && chmod +x /opt/omem-server && /opt/omem-server"
 ```
+
+## Object Storage (Optional)
+
+By default ourmem stores data on local disk. For durability and scalability, configure object storage:
+
+### Alibaba Cloud OSS (native oss:// scheme)
+
+```bash
+OMEM_OSS_BUCKET=your-bucket
+OSS_ENDPOINT=https://oss-xx-internal.aliyuncs.com
+OSS_ACCESS_KEY_ID=your-ak
+OSS_ACCESS_KEY_SECRET=your-sk
+```
+
+On Alibaba Cloud ECS, credentials can be auto-discovered from the ECS RAM role (no AK/SK needed).
+
+### S3-compatible storage
+
+```bash
+OMEM_S3_BUCKET=your-bucket
+AWS_ENDPOINT_URL=https://s3.amazonaws.com
+AWS_REGION=us-east-1
+```
+
+> OSS takes priority over S3. If both `OMEM_OSS_BUCKET` and `OMEM_S3_BUCKET` are set, OSS is used.
 
 ## Step 1: Create API Key
 
@@ -115,50 +151,110 @@ Save the `api_key`. A personal Space is created automatically.
 
 Pick the user's platform. All configs below use `http://localhost:8080` as the server URL. Adjust if your server runs elsewhere.
 
+### Claude Code
+
+`[AGENT]` Set environment variables. Add to `~/.bashrc` or `~/.zshrc` for persistence:
+
+```bash
+export OMEM_API_URL="http://localhost:8080"
+export OMEM_API_KEY="YOUR_API_KEY"
+```
+
+Then install the plugin inside Claude Code:
+
+```
+/plugin marketplace add ourmem/omem
+/plugin install ourmem@ourmem
+```
+
 ### OpenCode
 
-Add to `opencode.json`:
+`[AGENT]` Add the plugin to `opencode.json`:
+
+```bash
+# If opencode.json exists, merge the plugin entry
+jq '.plugin = ((.plugin // []) + ["@ourmem/opencode"] | unique)' opencode.json > tmp.json && mv tmp.json opencode.json
+```
+
+If no `opencode.json` exists, create one:
 
 ```json
 {
-  "plugins": {
-    "omem": {
-      "package": "@omem/opencode",
-      "config": {
-        "serverUrl": "http://localhost:8080",
-        "apiKey": "YOUR_API_KEY"
-      }
-    }
-  }
+  "plugin": ["@ourmem/opencode"]
 }
 ```
 
-### Claude Code
+Set environment variables (add to `~/.bashrc` or `~/.zshrc` for persistence):
 
 ```bash
-# Set environment variables (add to ~/.bashrc or ~/.zshrc)
 export OMEM_API_URL="http://localhost:8080"
 export OMEM_API_KEY="YOUR_API_KEY"
-
-# Install plugin
-mkdir -p ~/.claude/plugins
-ln -s /path/to/omem/plugins/claude-code ~/.claude/plugins/omem
 ```
 
 ### OpenClaw
 
+`[AGENT]` Detect npm registry reachability first (same as hosted setup). Then install:
+
 ```bash
-openclaw plugins install @omem/openclaw
+openclaw plugins install @ourmem/openclaw
+
+# For China/Alibaba Cloud networks:
+NPM_CONFIG_REGISTRY=https://registry.npmmirror.com openclaw plugins install @ourmem/openclaw
 ```
 
-Configure:
+Configure `openclaw.json`:
+
+```bash
+jq --arg api_key "$API_KEY" '
+  .plugins.slots.memory = "ourmem" |
+  if (.plugins.entries.ourmem.config // {}) == {}
+  then
+    .plugins.entries.ourmem = {
+      enabled: true,
+      config: { apiUrl: "http://localhost:8080", apiKey: $api_key }
+    }
+  else
+    .plugins.entries.ourmem.config.apiKey = $api_key |
+    .plugins.entries.ourmem.enabled = true
+  end |
+  .plugins.allow = ((.plugins.allow // []) + ["ourmem"] | unique)
+' openclaw.json > tmp.json && mv tmp.json openclaw.json
+```
+
+If no `openclaw.json` exists, create:
 
 ```json
 {
   "plugins": {
-    "@omem/openclaw": {
-      "serverUrl": "http://localhost:8080",
-      "apiKey": "YOUR_API_KEY"
+    "slots": { "memory": "ourmem" },
+    "entries": {
+      "ourmem": {
+        "enabled": true,
+        "config": {
+          "apiUrl": "http://localhost:8080",
+          "apiKey": "YOUR_API_KEY"
+        }
+      }
+    },
+    "allow": ["ourmem"]
+  }
+}
+```
+
+### MCP Server (Cursor / VS Code / Claude Desktop)
+
+Add to your MCP config:
+
+```json
+{
+  "mcpServers": {
+    "ourmem": {
+      "command": "npx",
+      "args": ["-y", "@ourmem/mcp"],
+      "env": {
+        "OMEM_API_URL": "http://localhost:8080",
+        "OMEM_API_KEY": "YOUR_API_KEY"
+      }
     }
   }
 }
@@ -168,13 +264,14 @@ Configure:
 
 Replace `YOUR_API_KEY` with the actual key from Step 1.
 
-If the server runs on a different host or port, update `serverUrl` / `OMEM_API_URL` accordingly.
+If the server runs on a different host or port, update `OMEM_API_URL` / `apiUrl` accordingly.
 
 ## Step 4: Restart
 
+- **Claude Code**: restart the `claude` process
 - **OpenCode**: restart the `opencode` process
-- **Claude Code**: restart `claude`
 - **OpenClaw**: restart the gateway
+- **MCP clients**: restart the app
 
 ## Step 5: Verify
 
@@ -197,7 +294,7 @@ curl -s "http://localhost:8080/v1/memories/search?q=self-hosted+setup&limit=1" \
   -H "X-API-Key: YOUR_API_KEY" | jq '.results[0].memory.content'
 ```
 
-If all checks pass, return to the main SKILL.md and continue with Step 6 (handoff).
+If all checks pass, return to the main SKILL.md and continue with Step 5 (handoff).
 
 ## Environment Variables
 
@@ -207,6 +304,7 @@ Key server-side variables (set in `.env` or Docker environment):
 |----------|---------|-------------|
 | `OMEM_PORT` | `8080` | Server port |
 | `OMEM_LOG_LEVEL` | `info` | Log level |
+| `OMEM_OSS_BUCKET` | _(empty)_ | Alibaba Cloud OSS bucket (enables oss:// scheme) |
 | `OMEM_S3_BUCKET` | `omem-data` | S3 bucket for LanceDB |
 | `OMEM_EMBED_PROVIDER` | `noop` | Embedding: `noop`, `bedrock`, `openai-compatible` |
 | `OMEM_LLM_PROVIDER` | _(empty)_ | LLM: `openai-compatible`, `bedrock` |

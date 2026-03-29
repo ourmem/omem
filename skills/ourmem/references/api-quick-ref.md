@@ -91,16 +91,6 @@ curl -sX POST $API_URL/v1/memories/MEMORY_ID/pull \
   -H "Content-Type: application/json" -H "X-API-Key: $KEY" \
   -d '{"source_space": "team/SPACE_UUID"}'
 
-# Auto-share rules
-curl -sX POST $API_URL/v1/spaces/SPACE_ID/auto-share-rules \
-  -H "Content-Type: application/json" -H "X-API-Key: $KEY" \
-  -d '{"source_space": "personal/USER_ID", "categories": ["cases","patterns"], "min_importance": 0.7}'
-
-# List auto-share rules
-curl -s $API_URL/v1/spaces/SPACE_ID/auto-share-rules -H "X-API-Key: $KEY"
-
-# Delete auto-share rule
-curl -sX DELETE $API_URL/v1/spaces/SPACE_ID/auto-share-rules/RULE_ID -H "X-API-Key: $KEY"
 ```
 
 ## File Upload
