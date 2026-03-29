@@ -136,7 +136,7 @@ Install the plugin:
 
 ```bash
 /plugin marketplace add ourmem/omem
-/plugin install ourmem@ourmem/omem
+/plugin install ourmem@ourmem
 ```
 
 **OpenCode:**

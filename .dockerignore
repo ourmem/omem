@@ -1,0 +1,17 @@
+target/
+omem-data/
+node_modules/
+.git/
+.env
+.env.*
+!.env.example
+*.md
+!README.md
+docs/
+eval/
+skills/
+scripts/
+.github/
+.sisyphus/
+/tmp/
+*.gz

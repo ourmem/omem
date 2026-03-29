@@ -1,0 +1,21 @@
+{
+  "name": "ourmem",
+  "owner": {
+    "name": "ourmem",
+    "email": "hi@ourmem.ai"
+  },
+  "metadata": {
+    "description": "Persistent memory plugins for AI coding agents"
+  },
+  "plugins": [
+    {
+      "name": "ourmem",
+      "source": "./plugins/claude-code",
+      "description": "Persistent memory for Claude Code — memories survive across sessions, projects, and machines",
+      "version": "0.2.1",
+      "category": "memory",
+      "tags": ["memory", "persistent", "agent-memory"],
+      "homepage": "https://ourmem.ai"
+    }
+  ]
+}
