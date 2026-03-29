@@ -17,6 +17,8 @@
 
 ## The Problem
 
+[![SafeSkill 83/100](https://img.shields.io/badge/SafeSkill-83%2F100_Passes%20with%20Notes-yellow)](https://safeskill.dev/scan/ourmem-omem)
+
 Your AI agents have amnesia — and they work alone.
 
 - 🧠 **Amnesia** — every session starts from zero. Preferences, decisions, context — all gone.
