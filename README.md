@@ -5,7 +5,7 @@
 
 <p align="center">
   <a href="https://github.com/ourmem/omem/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"></a>
-  <a href="https://ourmem.ai"><img src="https://img.shields.io/badge/hosted-api.ourmem.ai-green.svg" alt="Hosted"></a>
+  <a href="https://ourmem.ai"><img src="https://img.shields.io/badge/hosted-ourmem.ai-green.svg" alt="Hosted"></a>
   <a href="https://github.com/ourmem/omem"><img src="https://img.shields.io/github/stars/ourmem/omem?style=social" alt="Stars"></a>
 </p>
 
@@ -113,7 +113,7 @@ Weibull decay model manages the memory lifecycle — core memories persist, peri
 | | Self-hostable | Single binary, Docker one-liner, ~$5/month |
 | | musl static build | Zero-dependency binary for any Linux x86_64 |
 | | Object storage | Alibaba Cloud OSS or S3-compatible, with ECS RAM role support |
-| | Hosted option | api.ourmem.ai — nothing to deploy |
+| | Hosted option | ourmem.ai — nothing to deploy |
 
 ## From Isolated Agents to Collective Intelligence
 
@@ -154,7 +154,7 @@ Your AI Agent (OpenCode / Claude Code / OpenClaw / Cursor)
 
 One message to your AI agent. It handles everything — API key, plugin install, config, verification.
 
-**Hosted (api.ourmem.ai — nothing to deploy):**
+**Hosted (ourmem.ai — nothing to deploy):**
 
 | Platform | Copy this to your agent |
 |----------|------------------------|
