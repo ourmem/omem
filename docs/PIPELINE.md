@@ -484,13 +484,13 @@ ourmem integrates with AI coding platforms through four plugins, each adapted to
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        AI Agent Platforms                            │
 ├──────────────┬──────────────┬──────────────┬────────────────────────┤
-│  OpenCode    │  OpenClaw    │  Claude Code │  MCP (Cursor/VS Code) │
-│  Plugin      │  Plugin      │  Hooks       │  Server               │
+│  Claude Code │  OpenCode    │  OpenClaw    │  MCP (Cursor/VS Code) │
+│  Hooks+MCP   │  Plugin      │  Plugin      │  Server               │
 │              │              │              │                        │
-│  4 hooks     │  7 lifecycle │  2 shell     │  6 tools              │
-│  5 tools     │  5 tools     │  hooks       │  1 resource           │
-│              │  MemoryBackend│             │                        │
-│              │  ContextEngine│             │                        │
+│  3 bash hooks│  3 hooks     │  3 hooks     │  9 tools              │
+│  9 MCP tools │  5 tools     │  5 tools     │  1 resource           │
+│  2 skills    │              │  ContextEngine│                       │
+│              │              │  MemoryBackend│                       │
 └──────┬───────┴──────┬───────┴──────┬───────┴────────────┬──────────┘
        │              │              │                    │
        └──────────────┴──────────────┴────────────────────┘
@@ -502,9 +502,38 @@ ourmem integrates with AI coding platforms through four plugins, each adapted to
                     └────────────────────┘
 ```
 
-### 3.1 OpenCode Plugin (`@ourmem/opencode`)
+### 3.1 Claude Code Plugin
 
-**Architecture:** TypeScript plugin implementing `@opencode-ai/plugin` interface. Registers hooks, tools, and event handlers.
+**Installation:** `/plugin marketplace add ourmem/omem` or `/plugin install ourmem@ourmem`
+
+**Architecture:** Bash scripts registered via `hooks.json`, plus a bundled `@ourmem/mcp` server (via `.mcp.json`) for on-demand tools, and two skills for slash-command access.
+
+**Configuration:**
+
+| Env Variable | Default | Purpose |
+|-------------|---------|---------|
+| `OMEM_API_URL` | `https://api.ourmem.ai` | Server URL |
+| `OMEM_API_KEY` | `""` | API authentication (graceful skip if empty) |
+
+**Hooks (3):**
+
+| Hook | Timeout | Behavior |
+|------|---------|----------|
+| `SessionStart` | 15s | `GET /v1/memories?limit=20`. Formats as markdown list with relative timestamps ("3d ago"), showing `l0_abstract` (fallback: `content`, truncated to 200 chars). Injects via `hookSpecificOutput.hookEventName.additionalContext`. If no API key, shows setup instructions instead. |
+| `Stop` | 30s | Reads `transcript_path` JSONL file (fallback: inline `transcript`/`messages` array). Extracts last 10 user+assistant messages (each truncated to 2000 chars). Skips if fewer than 2 messages. `POST /v1/memories` with `mode: "smart"`, `tags: ["auto-captured", "claude-code"]`. |
+| `PreCompact` | 30s | Same as Stop but extracts last 15 messages. `POST /v1/memories` with `mode: "smart"`, `tags: ["pre-compact", "claude-code"]`. |
+
+All hooks use `curl` with 8-second HTTP timeout. Errors are silently swallowed to never block the session.
+
+**MCP Tools (9, bundled via `.mcp.json`):** The plugin bundles `@ourmem/mcp` as a child MCP server, giving Claude access to: `memory_store`, `memory_search`, `memory_list`, `memory_ingest`, `memory_get`, `memory_update`, `memory_forget`, `memory_stats`, `memory_profile`.
+
+**Skills (2):** `/ourmem:memory-recall` (search), `/ourmem:memory-store` (save).
+
+### 3.2 OpenCode Plugin (`@ourmem/opencode`)
+
+**Installation:** Add `"@ourmem/opencode"` to the `plugin` array in `opencode.json`.
+
+**Architecture:** TypeScript plugin implementing `@opencode-ai/plugin` interface. Registers 3 hooks and 5 tools. Default export with `{id: "ourmem", server}` format.
 
 **Configuration:**
 
@@ -514,25 +543,20 @@ ourmem integrates with AI coding platforms through four plugins, each adapted to
 | `OMEM_API_KEY` | `""` | API authentication |
 
 **Container Tags:** Each session generates two SHA-256 hash-based tags for isolation:
-- `omem_user_{hash(email)[0:16]}` — User dimension
-- `omem_project_{hash(cwd)[0:16]}` — Project dimension
+- `omem_user_{hash(email)[0:16]}` — derived from `GIT_AUTHOR_EMAIL` or `USER`
+- `omem_project_{hash(cwd)[0:16]}` — derived from working directory
 
 These tags are attached to all store and search operations.
 
-**Automatic Memory Retrieval:**
+**Hooks (3):**
 
 | Hook | Trigger | Behavior |
 |------|---------|----------|
-| `experimental.chat.system.transform` | Every system prompt build | Searches `q=*&limit=10` with container tags. Groups results by category. Injects `<omem-context>` XML block into system prompt. |
-| `chat.message` | Every user message | Scans for memory keywords ("remember", "save this", "记住", "记一下", etc.). If detected, flags session for nudge prompt on next system build. |
+| `experimental.chat.system.transform` | Before each LLM call | **First message only** per session (tracked via `injectedSessions` Set). Uses the first user message text for semantic search (fallback `"*"` if no message stored yet). Also fetches user profile via `GET /v1/profile`. Injects `<omem-context>` block (memories grouped by category with relative age) + `<omem-profile>` block into system prompt. If keyword was detected, appends a nudge prompt. |
+| `chat.message` | User sends a message | Stores the first message text in a `firstMessages` Map (keyed by session ID) for use as the semantic search query in the next `system.transform` call. Also scans for memory keywords ("remember", "save this", "don't forget", "keep in mind", "note that", "store this", "memorize", "记住", "记一下", "保存", "记下来", "别忘了"). If detected, flags the session so the next system prompt includes a nudge to use `memory_store`. |
+| `experimental.session.compacting` | Before context compaction | Searches `"*"` for 20 recent memories with container tags. Injects `<omem-context>` block into the compaction context so memories survive compaction. |
 
-**Automatic Memory Storage:**
-
-| Hook | Trigger | Behavior |
-|------|---------|----------|
-| `event` (session.idle) | Session becomes idle | Fetches recent 20 memories. Strips `<private>` tags. Sends cleaned messages via `POST /v1/memories` with `mode: "smart"` for LLM extraction. |
-
-**On-Demand Tools (5):**
+**Tools (5):** All return structured JSON `{ok, data}`.
 
 | Tool | API Call |
 |------|---------|
@@ -542,86 +566,74 @@ These tags are attached to all store and search operations.
 | `memory_update` | `PUT /v1/memories/{id}` |
 | `memory_delete` | `DELETE /v1/memories/{id}` |
 
-### 3.2 OpenClaw Plugin (`@ourmem/openclaw`)
+**Note:** OpenCode has no session-end hook. Memory storage relies on the agent proactively using the `memory_store` tool, or keyword detection nudging the agent to do so.
 
-**Architecture:** The richest integration — registers MemoryBackend, ContextEngine, Hooks, and Tools. Four integration layers.
+### 3.3 OpenClaw Plugin (`@ourmem/openclaw`)
 
-**Layer 1: MemoryBackend** — Registers as OpenClaw's memory storage backend, providing `store()`, `search()`, `get()`, `update()`, `delete()`, `list()` methods that proxy directly to the ourmem API.
+**Installation:** `openclaw plugins install @ourmem/openclaw`
 
-**Layer 2: ContextEngine** — Implements 7 lifecycle methods:
+**Architecture:** Object export `{id, name, register()}`. The `register()` method registers hooks via `api.on()` and tools via `api.registerTool()`. Also provides a `ContextEngine` class and `MemoryBackend` class for framework-level integration.
 
-```
-bootstrap()              ──▶ Health check (GET /health)
-    │
-ingest(message)          ──▶ Smart ingest single message
-    │
-assemble(budget)         ──▶ Parallel: GET /v1/profile + search memories
-    │                        Format within token budget (text.length / 4)
-    │                        Inject <user-profile> + <memories> blocks
-    │
-afterTurn(turn)          ──▶ Smart ingest user + assistant messages
-    │
-prepareSubagentSpawn()   ──▶ Search memories relevant to sub-task (limit=5)
-    │
-onSubagentEnded(result)  ──▶ Smart ingest sub-agent summary
-    │
-compact()                ──▶ No-op (server-side not implemented)
-```
+**Configuration:**
 
-**Layer 3: Hooks (2):**
+| Source | Priority | Keys |
+|--------|----------|------|
+| `pluginConfig` (openclaw.json) | 1st | `apiUrl`, `apiKey` |
+| Environment variables | 2nd | `OMEM_API_URL`, `OMEM_API_KEY` |
+| Defaults | 3rd | `https://api.ourmem.ai`, `""` |
+
+**Hooks (3):**
 
 | Hook | Trigger | Behavior |
 |------|---------|----------|
-| `before_prompt_build` | Before each prompt | Clears old `<omem-context>`, searches `q=*&limit=10`, injects fresh context |
-| `agent_end` (success only) | Agent execution ends | Takes last 20 messages (200KB budget), strips self-references, sends `mode: "smart"` |
+| `before_prompt_build` | Before each LLM call (priority: 50) | Semantic search using `event.prompt` text (truncated to 500 chars, fallback `"*"`). Formats memories by category with relative age. Returns `{ prependContext }` with `<omem-context>` block. |
+| `agent_end` | Agent completes (success only) | Extracts last 20 messages (200KB byte budget). Handles Claude content block arrays (extracts `type: "text"` blocks). Strips previously injected `<omem-context>` tags to prevent re-ingestion. Sends to `POST /v1/memories` with `mode: "smart"`, `session_id`, `agent_id`. |
+| `before_reset` | Before `/reset` or daily reset | Saves last 3 user messages (each truncated to 300 chars, minimum 10 chars) as a session summary via smart ingest. Prevents memory loss during OpenClaw's daily 4AM reset. |
 
-**Layer 4: Tools** — Same 5 tools as OpenCode (without container tags).
+**ContextEngine (7 lifecycle methods):** Available as `OmemContextEngine` class for framework-level integration:
 
-### 3.3 Claude Code Plugin (Hooks)
+```
+bootstrap()              ──▶ Health check (GET /health)
+ingest(message)          ──▶ Smart ingest single message
+assemble(budget)         ──▶ Parallel: GET /v1/profile + search memories
+                             Format within token budget (text.length / 4)
+                             Inject <user-profile> + <memories> blocks
+afterTurn(turn)          ──▶ Smart ingest user + assistant messages
+prepareSubagentSpawn()   ──▶ Search memories relevant to sub-task (limit=5)
+onSubagentEnded(result)  ──▶ Smart ingest sub-agent summary
+compact()                ──▶ No-op (server-side not implemented)
+```
 
-**Architecture:** Pure Bash scripts registered via `hooks.json`. The simplest integration.
+**MemoryBackend:** `OmemMemoryBackend` class proxies `store()`, `search()`, `get()`, `update()`, `delete()`, `list()` directly to the ourmem API.
 
-**Configuration:**
-
-| Env Variable | Required | Purpose |
-|-------------|----------|---------|
-| `OMEM_API_URL` | Yes | Server URL |
-| `OMEM_API_KEY` | Yes | API key (exits if empty) |
-
-**Hooks:**
-
-| Event | Script | Behavior |
-|-------|--------|----------|
-| `SessionStart` | `session-start.sh` | Calls `GET /v1/memories?limit=20`. Formats as markdown list with relative timestamps ("3d ago"). Injects via `hookSpecificOutput.SessionStart.additionalContext`. |
-| `Stop` (timeout: 120s) | `stop.sh` | Reads transcript from stdin. Extracts last assistant message (truncated to 1000 chars). Skips if < 50 chars. Stores with `tags: ["auto-captured"], source: "claude-code"`. |
-
-**Key Differences:**
-- No smart ingest — stores raw last assistant message (not the full conversation)
-- No on-demand tools — agents cannot explicitly store/search memories
-- No privacy filtering at the plugin level
-- Uses `curl` with 8-second timeout
+**Tools (5):** Same 5 tools as OpenCode (without container tags). All return structured JSON `{ok, data}`.
 
 ### 3.4 MCP Server (`@ourmem/mcp`)
 
-**Architecture:** Standalone MCP (Model Context Protocol) server process communicating via stdio transport. Pure on-demand mode with no automatic hooks.
+**Installation:** `npx -y @ourmem/mcp` in MCP config (Cursor, VS Code, Claude Desktop, Windsurf).
+
+**Architecture:** Standalone MCP server process communicating via stdio transport. Pure on-demand mode with no automatic hooks.
 
 **Configuration:**
 
-| Env Variable | Required | Purpose |
-|-------------|----------|---------|
-| `OMEM_API_URL` | Yes | Server URL |
-| `OMEM_API_KEY` | Yes (throws on missing) | API key |
+| Env Variable | Default | Purpose |
+|-------------|---------|---------|
+| `OMEM_API_URL` | `http://localhost:8080` | Server URL |
+| `OMEM_API_KEY` | (required) | API key |
 
-**Tools (6 — one more than other plugins):**
+**Tools (9):**
 
-| Tool | Parameters | API Call |
-|------|-----------|---------|
-| `memory_store` | `content`, `tags?`, `source?` | `POST /v1/memories` (source defaults to "mcp") |
-| `memory_search` | `query`, `limit?` (1-50), `scope?` | `GET /v1/memories/search` |
-| `memory_get` | `id` | `GET /v1/memories/{id}` |
-| `memory_update` | `id`, `content`, `tags?` | `PUT /v1/memories/{id}` |
-| `memory_forget` | `id` | `DELETE /v1/memories/{id}` |
-| `memory_profile` | (none) | `GET /v1/profile` |
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `memory_store` | `content`, `tags?`, `source?` | Store a memory (source defaults to "mcp") |
+| `memory_search` | `query`, `limit?` (1-50), `scope?`, `tags?` | Semantic search with optional tag filtering |
+| `memory_list` | `limit?` (1-100) | Browse recent memories without a search query |
+| `memory_ingest` | `messages[]`, `mode?`, `tags?` | Ingest conversation for smart extraction |
+| `memory_get` | `id` | Retrieve a memory by ID |
+| `memory_update` | `id`, `content`, `tags?` | Update memory content or tags |
+| `memory_forget` | `id` | Delete a memory (named "forget" not "delete") |
+| `memory_stats` | (none) | Memory statistics by category, type, tier |
+| `memory_profile` | (none) | Synthesized user profile from stored memories |
 
 **Resource (1):**
 
@@ -629,42 +641,25 @@ compact()                ──▶ No-op (server-side not implemented)
 |----------|-----|-------------|
 | User Profile | `omem://profile` | Returns synthesized user profile as JSON |
 
-**Key Differences:**
-- No automatic hooks — fully agent-driven
-- Unique `memory_profile` tool and `omem://profile` resource
-- Uses `memory_forget` instead of `memory_delete`
-- Longer timeout: 8000ms (vs 5000ms for other plugins)
-- Errors are thrown (not silently swallowed)
+**Key Differences from other plugins:**
+- No automatic hooks. Fully agent-driven.
+- 9 tools (vs 5 in OpenCode/OpenClaw). Extra: `memory_list`, `memory_ingest`, `memory_stats`, `memory_profile`.
+- Uses `memory_forget` instead of `memory_delete`.
+- Errors surface to the agent (not silently swallowed).
 
-### 3.5 Cross-Plugin Comparison
+### 3.5 Memory Flow Comparison
 
-**When Memories Are Stored:**
-
-| Trigger | OpenCode | OpenClaw | Claude Code | MCP |
-|---------|----------|----------|-------------|-----|
-| Session end/idle | ✅ Smart ingest last 20 msgs | ✅ Smart ingest last 20 msgs (200KB) | ✅ Store last assistant msg (>50 chars) | ❌ |
-| After each turn | ❌ | ✅ ContextEngine.afterTurn() | ❌ | ❌ |
-| Per message | ❌ | ✅ ContextEngine.ingest() | ❌ | ❌ |
-| Sub-agent end | ❌ | ✅ ContextEngine.onSubagentEnded() | ❌ | ❌ |
-| Agent explicit call | ✅ memory_store tool | ✅ memory_store tool | ❌ | ✅ memory_store tool |
-| Keyword detection | ✅ Nudges agent to use tool | ❌ | ❌ | ❌ |
-
-**When Memories Are Retrieved:**
-
-| Trigger | OpenCode | OpenClaw | Claude Code | MCP |
-|---------|----------|----------|-------------|-----|
-| Session start | ✅ Search `*` (10 results) | ✅ Search `*` (10 results) | ✅ List recent 20 | ❌ |
-| Context assembly | ❌ | ✅ Profile + search (token budget) | ❌ | ❌ |
-| Sub-agent spawn | ❌ | ✅ Task-relevant search (5 results) | ❌ | ❌ |
-| Agent explicit call | ✅ memory_search tool | ✅ memory_search tool | ❌ | ✅ memory_search tool |
-| User profile | ❌ | ✅ ContextEngine.assemble() | ❌ | ✅ memory_profile tool |
-
-**Privacy Protection:**
-
-| Feature | OpenCode | OpenClaw | Claude Code | MCP |
-|---------|----------|----------|-------------|-----|
-| `<private>` tag stripping | ✅ Client-side | ❌ | ❌ | ❌ |
-| Server-side privacy filter | ✅ (ingest pipeline) | ✅ (ingest pipeline) | N/A (direct store) | N/A (direct store) |
+| Feature | Claude Code | OpenCode | OpenClaw | MCP |
+|---------|:-----------:|:--------:|:--------:|:---:|
+| Auto-recall on session start | ✅ SessionStart hook (lists recent 20) | ✅ system.transform (first msg only, semantic search) | ✅ before_prompt_build (semantic search on prompt text) | ❌ |
+| Auto-save on session end | ✅ Stop hook (last 10 msgs, smart ingest) | ❌ (no session-end hook) | ✅ agent_end (last 20 msgs, smart ingest) | ❌ |
+| Save before reset | ❌ | ❌ | ✅ before_reset (last 3 user msgs) | ❌ |
+| Save before compaction | ✅ PreCompact hook (last 15 msgs, smart ingest) | ✅ session.compacting (injects memories into compaction context) | ❌ | ❌ |
+| Semantic search recall | ❌ (lists recent) | ✅ (first user message as query) | ✅ (prompt text as query) | ❌ |
+| Profile injection | ❌ | ✅ (`<omem-profile>` block) | ❌ (hooks don't inject profile; ContextEngine.assemble() does) | ✅ (memory_profile tool) |
+| Manual tools | ✅ (9 via bundled MCP) | ✅ (5 native) | ✅ (5 native) | ✅ (9) |
+| Keyword detection | ❌ | ✅ ("remember", "记住", etc.) | ❌ | ❌ |
+| Container tag isolation | ❌ | ✅ (user + project hash tags) | ❌ | ❌ |
 
 ---
 
