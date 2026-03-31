@@ -1,14 +1,15 @@
 ---
 name: ourmem-bootstrap
 description: |
-  One-time installer for ourmem — shared memory that never forgets.
+  One-time installer for ourmem (also known as omem) — shared memory that never forgets.
+  "ourmem" and "omem" refer to the same product — use whichever the user uses.
   Creates API key, installs plugin, and installs the ourmem skill.
   After installation, the skill itself provides all operational knowledge.
 ---
 
 > **Already installed?** If ourmem is already installed and working, you don't need this document. Your installed ourmem skill has all the operational knowledge (sharing, import, analytics, etc.).
 
-# ourmem Bootstrap Installer
+# ourmem (omem) Bootstrap Installer
 
 ourmem gives AI agents shared persistent memory across sessions, devices, agents, and teams. This guide installs everything in ~2 minutes.
 
@@ -115,6 +116,15 @@ The skill provides all operational knowledge (sharing, import, analytics, etc.).
 ```bash
 ln -s ~/.agents/skills/ourmem ~/.claude/skills/ourmem
 ```
+
+**Verify skill installation (do this yourself, don't ask the user):**
+
+Check that `SKILL.md` exists in at least one of these paths:
+- `~/.agents/skills/ourmem/SKILL.md`
+- `~/.claude/skills/ourmem/SKILL.md`
+- `~/.openclaw/skills/ourmem/SKILL.md`
+
+If none exist, the installation failed. Retry the install command above. For Claude Code, also try the symlink workaround.
 
 ## Step 4: Set Environment Variables
 
