@@ -177,8 +177,14 @@ curl -sX POST $API_URL/v1/imports -H "X-API-Key: $KEY" \
   -F "file=@memory.json" -F "file_type=memory" -F "strategy=auto"
 # strategy: auto (default) | atomic | section | document
 
-# Check import progress
+# Re-import updated file (bypass content dedup)
+curl -sX POST $API_URL/v1/imports -H "X-API-Key: $KEY" \
+  -F "file=@memory.json" -F "file_type=memory" -F "strategy=auto" -F "force=true"
+
+# Returns import_id immediately. Processing runs async in background.
+# Poll status:
 curl -s "$API_URL/v1/imports/IMPORT_ID" -H "X-API-Key: $KEY"
+# -> {"id": "...", "status": "completed|partial|failed", ...}
 
 # Trigger intelligence on past import
 curl -sX POST "$API_URL/v1/imports/IMPORT_ID/intelligence" -H "X-API-Key: $KEY"

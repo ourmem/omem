@@ -11,7 +11,7 @@ use futures::TryStreamExt;
 use lancedb::index::scalar::FtsIndexBuilder;
 use lancedb::index::Index;
 use lancedb::query::{ExecutableQuery, QueryBase, Select};
-use lancedb::table::Table;
+use lancedb::table::{NewColumnTransform, Table};
 use lancedb::Connection;
 
 use crate::domain::category::Category;
@@ -90,15 +90,39 @@ impl LanceStore {
             .await
             .map_err(|e| OmemError::Storage(format!("failed to list tables: {e}")))?;
 
-        if existing.contains(&self.table_name) {
+        if !existing.contains(&self.table_name) {
+            self.db
+                .create_empty_table(&self.table_name, Self::schema())
+                .execute()
+                .await
+                .map_err(|e| OmemError::Storage(format!("failed to create table: {e}")))?;
             return Ok(());
         }
 
-        self.db
-            .create_empty_table(&self.table_name, Self::schema())
-            .execute()
+        // Schema evolution: detect and add missing columns
+        let table = self.open_table().await?;
+        let current_schema = table
+            .schema()
             .await
-            .map_err(|e| OmemError::Storage(format!("failed to create table: {e}")))?;
+            .map_err(|e| OmemError::Storage(format!("failed to get table schema: {e}")))?;
+        let expected_schema = Self::schema();
+
+        let missing_fields: Vec<Field> = expected_schema
+            .fields()
+            .iter()
+            .filter(|f| current_schema.field_with_name(f.name()).is_err())
+            .map(|f| f.as_ref().clone())
+            .collect();
+
+        if !missing_fields.is_empty() {
+            let missing_schema = Arc::new(Schema::new(missing_fields));
+            table
+                .add_columns(NewColumnTransform::AllNulls(missing_schema), None)
+                .await
+                .map_err(|e| {
+                    OmemError::Storage(format!("failed to add missing columns: {e}"))
+                })?;
+        }
 
         Ok(())
     }
@@ -746,6 +770,15 @@ impl LanceStore {
         source_memory_id: &str,
     ) -> Result<Vec<Memory>, OmemError> {
         let table = self.open_table().await?;
+
+        let schema = table
+            .schema()
+            .await
+            .map_err(|e| OmemError::Storage(format!("schema check failed: {e}")))?;
+        if schema.field_with_name("provenance_source_id").is_err() {
+            return Ok(vec![]);
+        }
+
         let filter = format!(
             "state != 'deleted' AND provenance_source_id = '{}'",
             escape_sql(source_memory_id)
@@ -1147,5 +1180,92 @@ mod tests {
         let result = store.build_visibility_filter("agent'inject", &["space'bad".to_string()]);
         assert!(result.contains("agent''inject"));
         assert!(result.contains("space''bad"));
+    }
+
+    #[tokio::test]
+    async fn test_schema_evolution_adds_missing_columns() {
+        let dir = TempDir::new().unwrap();
+        let store = LanceStore::new(dir.path().to_str().unwrap())
+            .await
+            .unwrap();
+
+        let old_schema = Arc::new(Schema::new(
+            LanceStore::schema()
+                .fields()
+                .iter()
+                .filter(|f| f.name() != "version" && f.name() != "provenance_source_id")
+                .cloned()
+                .collect::<Vec<_>>(),
+        ));
+        assert_eq!(old_schema.fields().len(), 29);
+
+        store
+            .db
+            .create_empty_table(&store.table_name, old_schema)
+            .execute()
+            .await
+            .unwrap();
+
+        let table_before = store.open_table().await.unwrap();
+        let schema_before = table_before.schema().await.unwrap();
+        assert!(schema_before.field_with_name("version").is_err());
+        assert!(schema_before.field_with_name("provenance_source_id").is_err());
+
+        store.init_table().await.unwrap();
+
+        let table_after = store.open_table().await.unwrap();
+        let schema_after = table_after.schema().await.unwrap();
+        assert!(schema_after.field_with_name("version").is_ok());
+        assert!(schema_after.field_with_name("provenance_source_id").is_ok());
+        assert_eq!(schema_after.fields().len(), 31);
+    }
+
+    #[tokio::test]
+    async fn test_init_table_idempotent() {
+        let dir = TempDir::new().unwrap();
+        let store = LanceStore::new(dir.path().to_str().unwrap())
+            .await
+            .unwrap();
+
+        store.init_table().await.unwrap();
+
+        let table = store.open_table().await.unwrap();
+        let schema = table.schema().await.unwrap();
+        let col_count = schema.fields().len();
+
+        store.init_table().await.unwrap();
+
+        let table2 = store.open_table().await.unwrap();
+        let schema2 = table2.schema().await.unwrap();
+        assert_eq!(schema2.fields().len(), col_count);
+    }
+
+    #[tokio::test]
+    async fn test_find_by_provenance_source_missing_column() {
+        let dir = TempDir::new().unwrap();
+        let store = LanceStore::new(dir.path().to_str().unwrap())
+            .await
+            .unwrap();
+
+        let old_schema = Arc::new(Schema::new(
+            LanceStore::schema()
+                .fields()
+                .iter()
+                .filter(|f| f.name() != "provenance_source_id")
+                .cloned()
+                .collect::<Vec<_>>(),
+        ));
+        store
+            .db
+            .create_empty_table(&store.table_name, old_schema)
+            .execute()
+            .await
+            .unwrap();
+
+        let result = store
+            .find_by_provenance_source("some-id")
+            .await
+            .unwrap();
+        assert!(result.is_empty());
     }
 }

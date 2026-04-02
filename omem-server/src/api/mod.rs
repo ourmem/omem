@@ -1449,4 +1449,206 @@ mod tests {
             .expect("carol");
         assert_eq!(carol["role"], "admin");
     }
+
+    fn build_multipart(fields: &[(&str, &str)], file: Option<(&str, &str)>) -> (String, Vec<u8>) {
+        let boundary = "----TestBoundary7MA4YWxkTrZu0gW";
+        let mut body = Vec::new();
+        for (name, value) in fields {
+            body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+            body.extend_from_slice(
+                format!("Content-Disposition: form-data; name=\"{name}\"\r\n\r\n").as_bytes(),
+            );
+            body.extend_from_slice(format!("{value}\r\n").as_bytes());
+        }
+        if let Some((filename, content)) = file {
+            body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+            body.extend_from_slice(
+                format!(
+                    "Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\nContent-Type: application/octet-stream\r\n\r\n"
+                )
+                .as_bytes(),
+            );
+            body.extend_from_slice(content.as_bytes());
+            body.extend_from_slice(b"\r\n");
+        }
+        body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+        let ct = format!("multipart/form-data; boundary={boundary}");
+        (ct, body)
+    }
+
+    #[tokio::test]
+    async fn test_force_import() {
+        let (app, _dir) = setup_app().await;
+        let api_key = create_test_tenant(&app).await;
+
+        let file_content = "hello world test data for force import";
+
+        // --- First import: should succeed ---
+        let (ct, body) = build_multipart(
+            &[("file_type", "memory"), ("post_process", "false")],
+            Some(("test.txt", file_content)),
+        );
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/imports")
+                    .header("content-type", &ct)
+                    .header("x-api-key", &api_key)
+                    .body(Body::from(body))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = resp.into_body().collect().await.expect("body").to_bytes();
+        let first: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        let first_id = first["id"].as_str().expect("first import id").to_string();
+
+        // --- Second import (same content, no force): should be rejected ---
+        let (ct, body) = build_multipart(
+            &[("file_type", "memory"), ("post_process", "false")],
+            Some(("test.txt", file_content)),
+        );
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/imports")
+                    .header("content-type", &ct)
+                    .header("x-api-key", &api_key)
+                    .body(Body::from(body))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let bytes = resp.into_body().collect().await.expect("body").to_bytes();
+        let err: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        let msg = err["error"]["message"].as_str().unwrap_or("");
+        assert!(msg.contains("duplicate"), "expected duplicate error, got: {msg}");
+
+        // --- Third import (same content, force=true): should succeed ---
+        let (ct, body) = build_multipart(
+            &[
+                ("file_type", "memory"),
+                ("post_process", "false"),
+                ("force", "true"),
+            ],
+            Some(("test.txt", file_content)),
+        );
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/imports")
+                    .header("content-type", &ct)
+                    .header("x-api-key", &api_key)
+                    .body(Body::from(body))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = resp.into_body().collect().await.expect("body").to_bytes();
+        let forced: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        let forced_id = forced["id"].as_str().expect("forced import id").to_string();
+        assert_ne!(first_id, forced_id, "force import should create new task");
+    }
+
+    #[tokio::test]
+    async fn test_force_import_rollback() {
+        let (app, _dir) = setup_app().await;
+        let api_key = create_test_tenant(&app).await;
+
+        let file_content = "rollback test data for force import";
+
+        // --- First normal import ---
+        let (ct, body) = build_multipart(
+            &[("file_type", "memory"), ("post_process", "false")],
+            Some(("rollback.txt", file_content)),
+        );
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/imports")
+                    .header("content-type", &ct)
+                    .header("x-api-key", &api_key)
+                    .body(Body::from(body))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = resp.into_body().collect().await.expect("body").to_bytes();
+        let first: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        let first_id = first["id"].as_str().expect("id").to_string();
+
+        // --- Force import same content ---
+        let (ct, body) = build_multipart(
+            &[
+                ("file_type", "memory"),
+                ("post_process", "false"),
+                ("force", "true"),
+            ],
+            Some(("rollback.txt", file_content)),
+        );
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/imports")
+                    .header("content-type", &ct)
+                    .header("x-api-key", &api_key)
+                    .body(Body::from(body))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = resp.into_body().collect().await.expect("body").to_bytes();
+        let forced: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        let forced_id = forced["id"].as_str().expect("id").to_string();
+
+        // rollback only the forced import
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/v1/imports/{forced_id}/rollback"))
+                    .header("x-api-key", &api_key)
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = resp.into_body().collect().await.expect("body").to_bytes();
+        let rb: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        assert_eq!(rb["import_status"], "rolled_back");
+
+        // --- First import should still be intact ---
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/v1/imports/{first_id}"))
+                    .header("x-api-key", &api_key)
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = resp.into_body().collect().await.expect("body").to_bytes();
+        let original: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        assert_eq!(original["status"], "completed");
+    }
 }

@@ -37,6 +37,7 @@ pub async fn create_import(
     let mut session_id: Option<String> = None;
     let mut space_id: Option<String> = None;
     let mut post_process = true;
+    let mut force = false;
     let mut strategy = String::from("auto");
 
     while let Some(field) = multipart
@@ -93,6 +94,13 @@ pub async fn create_import(
                     .map_err(|e| OmemError::Validation(format!("{e}")))?;
                 post_process = val != "false" && val != "0";
             }
+            "force" => {
+                let val = field
+                    .text()
+                    .await
+                    .map_err(|e| OmemError::Validation(format!("{e}")))?;
+                force = val == "true" || val == "1";
+            }
             "strategy" => {
                 strategy = field
                     .text()
@@ -128,14 +136,15 @@ pub async fn create_import(
 
     let content_hash = sha256_hex(&content);
 
+    let session_uri = format!("{}/{}", state.config.store_uri(), target_space);
     let session_store = Arc::new(
-        SessionStore::new(&state.config.store_uri())
+        SessionStore::new(&session_uri)
             .await
             .map_err(|e| OmemError::Storage(format!("session store: {e}")))?,
     );
     session_store.init_table().await?;
 
-    if session_store.exists_by_hash(&content_hash).await? {
+    if !force && session_store.exists_by_hash(&content_hash).await? {
         return Err(OmemError::Validation(
             "file already imported (duplicate content)".to_string(),
         ));
@@ -291,8 +300,9 @@ pub async fn trigger_intelligence(
 
     let store = state.store_manager.get_store(&task.space_id).await?;
 
+    let session_uri = format!("{}/{}", state.config.store_uri(), task.space_id);
     let session_store = Arc::new(
-        SessionStore::new(&state.config.store_uri())
+        SessionStore::new(&session_uri)
             .await
             .map_err(|e| OmemError::Storage(format!("session store: {e}")))?,
     );
@@ -411,7 +421,8 @@ pub async fn rollback_import(
         .await?
         .ok_or_else(|| OmemError::NotFound(format!("import task {id}")))?;
 
-    let session_store = SessionStore::new(&state.config.store_uri())
+    let session_uri = format!("{}/{}", state.config.store_uri(), task.space_id);
+    let session_store = SessionStore::new(&session_uri)
         .await
         .map_err(|e| OmemError::Storage(format!("session store: {e}")))?;
     session_store.init_table().await?;

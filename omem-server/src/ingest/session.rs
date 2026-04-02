@@ -518,6 +518,145 @@ mod tests {
         assert!(!store.exists_by_hash("nonexistent_hash").await.expect("not exists"));
     }
 
+    /// Two tenants import the same content → both succeed (per-tenant path isolation).
+    /// This would FAIL if both tenants shared a global sessions table.
+    #[tokio::test]
+    async fn test_cross_tenant_dedup() {
+        let dir = TempDir::new().expect("temp dir");
+
+        let tenant_a_path = dir.path().join("personal").join("tenant-a");
+        let tenant_b_path = dir.path().join("personal").join("tenant-b");
+
+        let store_a = SessionStore::new(tenant_a_path.to_str().expect("path"))
+            .await
+            .expect("store a");
+        store_a.init_table().await.expect("init a");
+
+        let store_b = SessionStore::new(tenant_b_path.to_str().expect("path"))
+            .await
+            .expect("store b");
+        store_b.init_table().await.expect("init b");
+
+        // Same content hash — simulating same file imported by both tenants
+        let content_hash =
+            "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890".to_string();
+
+        let msg_a = SessionMessage {
+            id: Uuid::new_v4().to_string(),
+            session_id: "import-task-a".to_string(),
+            agent_id: String::new(),
+            role: "import".to_string(),
+            content: "shared content".to_string(),
+            content_hash: content_hash.clone(),
+            tags: vec![],
+            created_at: chrono::Utc::now().to_rfc3339(),
+        };
+
+        let msg_b = SessionMessage {
+            id: Uuid::new_v4().to_string(),
+            session_id: "import-task-b".to_string(),
+            agent_id: String::new(),
+            role: "import".to_string(),
+            content: "shared content".to_string(),
+            content_hash: content_hash.clone(),
+            tags: vec![],
+            created_at: chrono::Utc::now().to_rfc3339(),
+        };
+
+        // Tenant A imports → succeeds
+        assert!(!store_a.exists_by_hash(&content_hash).await.expect("check a"));
+        store_a.bulk_create(&[msg_a]).await.expect("insert a");
+        assert!(store_a.exists_by_hash(&content_hash).await.expect("verify a"));
+
+        // Tenant B imports same content → should ALSO succeed (isolated store)
+        assert!(
+            !store_b.exists_by_hash(&content_hash).await.expect("check b"),
+            "BUG: tenant B blocked by tenant A's import — stores not isolated"
+        );
+        store_b.bulk_create(&[msg_b]).await.expect("insert b");
+        assert!(store_b.exists_by_hash(&content_hash).await.expect("verify b"));
+    }
+
+    /// Same tenant imports same content twice → second rejected (dedup still works).
+    #[tokio::test]
+    async fn test_same_tenant_dedup() {
+        let dir = TempDir::new().expect("temp dir");
+        let store_path = dir.path().join("personal").join("tenant-a");
+
+        let store = SessionStore::new(store_path.to_str().expect("path"))
+            .await
+            .expect("store");
+        store.init_table().await.expect("init");
+
+        let content_hash =
+            "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890".to_string();
+
+        let msg = SessionMessage {
+            id: Uuid::new_v4().to_string(),
+            session_id: "import-task-1".to_string(),
+            agent_id: String::new(),
+            role: "import".to_string(),
+            content: "some content".to_string(),
+            content_hash: content_hash.clone(),
+            tags: vec![],
+            created_at: chrono::Utc::now().to_rfc3339(),
+        };
+
+        // First import → succeeds
+        assert!(!store.exists_by_hash(&content_hash).await.expect("check 1"));
+        store.bulk_create(&[msg]).await.expect("insert 1");
+
+        // Second import with same hash → rejected
+        assert!(
+            store.exists_by_hash(&content_hash).await.expect("check 2"),
+            "BUG: same-tenant dedup failed — duplicate not detected"
+        );
+    }
+
+    /// Tenant A's delete_all must NOT destroy Tenant B's session data.
+    /// This would FAIL if both tenants shared a global sessions table.
+    #[tokio::test]
+    async fn test_delete_all_tenant_isolation() {
+        let dir = TempDir::new().expect("temp dir");
+
+        let tenant_a_path = dir.path().join("personal").join("tenant-a");
+        let tenant_b_path = dir.path().join("personal").join("tenant-b");
+
+        let store_a = SessionStore::new(tenant_a_path.to_str().expect("path"))
+            .await
+            .expect("store a");
+        store_a.init_table().await.expect("init a");
+
+        let store_b = SessionStore::new(tenant_b_path.to_str().expect("path"))
+            .await
+            .expect("store b");
+        store_b.init_table().await.expect("init b");
+
+        // Both tenants add session data
+        let msg_a = SessionMessage::new("sess-a", "agent", "user", "tenant A data", vec![]);
+        let msg_b = SessionMessage::new("sess-b", "agent", "user", "tenant B data", vec![]);
+
+        store_a.bulk_create(&[msg_a]).await.expect("insert a");
+        store_b.bulk_create(&[msg_b]).await.expect("insert b");
+
+        assert_eq!(store_a.count_by_session("sess-a").await.expect("count a"), 1);
+        assert_eq!(store_b.count_by_session("sess-b").await.expect("count b"), 1);
+
+        // Tenant A deletes ALL their sessions
+        let deleted = store_a.delete_all().await.expect("delete all a");
+        assert_eq!(deleted, 1);
+
+        // Tenant A is empty
+        assert_eq!(store_a.count_by_session("sess-a").await.expect("count a after"), 0);
+
+        // Tenant B MUST still be intact
+        assert_eq!(
+            store_b.count_by_session("sess-b").await.expect("count b after"),
+            1,
+            "BUG: tenant A's delete_all destroyed tenant B's sessions"
+        );
+    }
+
     #[tokio::test]
     async fn partial_dedup_mixed_new_and_existing() {
         let (store, _dir) = setup().await;

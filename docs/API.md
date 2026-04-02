@@ -2543,6 +2543,7 @@ curl -X POST http://localhost:8080/v1/files \
 |-------|------|----------|-------------|
 | file | file | Yes | 要导入的文件 |
 | file_type | string | Yes | `memory`（JSON数组）、`session`（消息JSON/JSONL）、`markdown`（按段落分割）、`jsonl`（逐行JSON） |
+| force | boolean | No | 默认 `false`。设为 `true` 时跳过内容去重检查，用于重新导入已更新的文件 |
 | agent_id | string | No | 关联的 Agent ID |
 | session_id | string | No | 关联的 Session ID（file_type=session 时有用） |
 | space_id | string | No | 目标 Space ID（默认 personal space） |
@@ -2610,6 +2611,13 @@ curl -X POST http://localhost:8080/v1/imports \
   -F "file=@architecture.md" \
   -F "file_type=markdown" \
   -F "strategy=section"
+
+# 重新导入已更新的文件（跳过内容去重）
+curl -X POST http://localhost:8080/v1/imports \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -F "file=@memory.json" \
+  -F "file_type=memory" \
+  -F "force=true"
 ```
 
 ### GET /v1/imports

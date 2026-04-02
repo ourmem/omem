@@ -173,10 +173,13 @@ Setup is NOT complete until: (1) API key created/verified, (2) plugin installed,
 
 When conversations are ingested (`"mode": "smart"`), the server runs a multi-stage pipeline:
 
-1. **LLM extraction**: extracts atomic facts, classified into 6 categories (profile, preferences, entities, events, cases, patterns)
-2. **Noise filter**: regex + vector prototypes + feedback learning removes low-value content
-3. **Admission control**: 5-dimension scoring (utility, confidence, novelty, recency, type prior) gates storage
-4. **7-decision reconciliation**: CREATE, MERGE, SKIP, SUPERSEDE, SUPPORT, CONTEXTUALIZE, or CONTRADICT
+1. **Fast path** (<50ms): stores raw content immediately so it's searchable right away
+2. **LLM extraction** (async): extracts atomic facts, classified into 6 categories (profile, preferences, entities, events, cases, patterns)
+3. **Noise filter**: regex + vector prototypes + feedback learning removes low-value content
+4. **Admission control**: 5-dimension scoring (utility, confidence, novelty, recency, type prior) gates storage
+5. **7-decision reconciliation**: CREATE, MERGE, SKIP, SUPERSEDE, SUPPORT, CONTEXTUALIZE, or CONTRADICT
+
+The LLM stages run asynchronously — a batch import may take 1-3 minutes to fully process. Wait ~2-3 minutes before checking memory counts or searching for newly-extracted facts. The `strategy=auto` results vary by content type (conversations get atomic extraction, structured docs get section splits) — this is expected behavior, not an error.
 
 The memory store gets smarter over time. Contradictions resolved, duplicates merged, noise filtered.
 
@@ -251,12 +254,28 @@ When the user says "import memories", scan their workspace for existing memory/s
 
 **Auto-scan:** detect platform -> find memory files -> upload 20 most recent via `/v1/imports` in parallel -> report results.
 
+**Import is async.** `POST /v1/imports` returns an `import_id` immediately while processing runs in the background. This means:
+
+- Fire all import requests in parallel — don't wait for one to finish before sending the next
+- Don't block the conversation waiting for completion
+- Poll `GET /v1/imports/{id}` to check status if needed (status: `completed`, `partial`, or `failed`)
+
 **Import API:**
 
 ```bash
+# Basic import
 curl -sX POST "$API_URL/v1/imports" -H "X-API-Key: $API_KEY" \
   -F "file=@memory.json" -F "file_type=memory" -F "strategy=auto"
+
+# Re-import an updated file (bypass content dedup)
+curl -sX POST "$API_URL/v1/imports" -H "X-API-Key: $API_KEY" \
+  -F "file=@memory.json" -F "file_type=memory" -F "strategy=auto" -F "force=true"
+
+# Check import status
+curl -s "$API_URL/v1/imports/IMPORT_ID" -H "X-API-Key: $API_KEY"
 ```
+
+**`force=true`**: bypasses content dedup check. Use when re-importing a file that was updated since last import — without `force`, the server skips content it already has.
 
 **Strategy:** `auto` (heuristic detection), `atomic` (short facts), `section` (split by headings), `document` (entire file as one chunk).
 

@@ -158,6 +158,8 @@ pub async fn create_memory(
             _ => IngestMode::Smart,
         };
 
+        let session_uri = format!("{}/{}", state.config.store_uri(), personal_space_id(&auth.tenant_id));
+
         let request = IngestRequest {
             messages: messages
                 .into_iter()
@@ -174,7 +176,7 @@ pub async fn create_memory(
         };
 
         let session_store = Arc::new(
-            SessionStore::new(&state.config.store_uri())
+            SessionStore::new(&session_uri)
                 .await
                 .map_err(|e| OmemError::Storage(format!("session store: {e}")))?,
         );
@@ -710,7 +712,8 @@ pub async fn delete_all_memories(
         .await?;
     let count = store.delete_all().await?;
 
-    let session_store = SessionStore::new(&state.config.store_uri())
+    let session_uri = format!("{}/{}", state.config.store_uri(), personal_space_id(&auth.tenant_id));
+    let session_store = SessionStore::new(&session_uri)
         .await
         .map_err(|e| OmemError::Storage(format!("session store: {e}")))?;
     session_store.init_table().await?;
