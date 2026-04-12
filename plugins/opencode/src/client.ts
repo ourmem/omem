@@ -1,6 +1,6 @@
 const DEFAULT_TIMEOUT_MS = 5_000;
 
-const MAX_QUERY_LENGTH = 500;
+const MAX_QUERY_LENGTH = 200; // CJK URL-encodes ~9x; 200 chars → ~1800 bytes < nginx 4K
 const MAX_CONTENT_CHARS = 30_000;
 
 function sanitizeContent(text: string, maxLen: number): string {

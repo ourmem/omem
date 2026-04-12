@@ -1,7 +1,8 @@
 const DEFAULT_TIMEOUT_MS = 8_000;
 
 // ── Safety limits (Qwen3-Embedding-0.6B max context ~32K tokens) ──
-const MAX_QUERY_LENGTH = 500;       // search query — enough for semantic search
+// NOTE: CJK chars URL-encode ~9x, so 200 chars → ~1800 bytes (safe under nginx 4K buffer)
+const MAX_QUERY_LENGTH = 200;       // search query — lowered to prevent 414
 const MAX_CONTENT_CHARS = 30_000;   // ~15K tokens, safe margin under 32K
 const MAX_ERROR_BODY_LENGTH = 200;  // prevent flooding OpenCode window
 
