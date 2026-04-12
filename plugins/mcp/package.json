@@ -7,12 +7,21 @@
   "bin": {
     "ourmem-mcp": "dist/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build"
   },
-  "keywords": ["mcp", "memory", "ai-agent", "persistent-memory", "ourmem", "model-context-protocol"],
+  "keywords": [
+    "mcp",
+    "memory",
+    "ai-agent",
+    "persistent-memory",
+    "ourmem",
+    "model-context-protocol"
+  ],
   "author": "ourmem",
   "license": "Apache-2.0",
   "homepage": "https://ourmem.ai",

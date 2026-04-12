@@ -2,6 +2,11 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { OmemClient } from "./client.js";
 
+function shortError(prefix: string, err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  return `${prefix}: ${msg.slice(0, 200)}`;
+}
+
 export function registerTools(server: McpServer, client: OmemClient): void {
   server.registerTool(
     "memory_store",
@@ -41,7 +46,7 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           content: [
             {
               type: "text" as const,
-              text: `Failed to store memory: ${(err as Error).message}`,
+              text: shortError("Failed to store memory", err),
             },
           ],
           isError: true,
@@ -110,7 +115,7 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           content: [
             {
               type: "text" as const,
-              text: `Search failed: ${(err as Error).message}`,
+              text: shortError("Search failed", err),
             },
           ],
           isError: true,
@@ -144,7 +149,7 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           content: [
             {
               type: "text" as const,
-              text: `Failed to delete memory: ${(err as Error).message}`,
+              text: shortError("Failed to delete memory", err),
             },
           ],
           isError: true,
@@ -188,7 +193,7 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           content: [
             {
               type: "text" as const,
-              text: `Failed to get memory: ${(err as Error).message}`,
+              text: shortError("Failed to get memory", err),
             },
           ],
           isError: true,
@@ -238,7 +243,7 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           content: [
             {
               type: "text" as const,
-              text: `Failed to update memory: ${(err as Error).message}`,
+              text: shortError("Failed to update memory", err),
             },
           ],
           isError: true,
@@ -271,7 +276,7 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           content: [
             {
               type: "text" as const,
-              text: `Failed to get profile: ${(err as Error).message}`,
+              text: shortError("Failed to get profile", err),
             },
           ],
           isError: true,
@@ -321,7 +326,7 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           content: [
             {
               type: "text" as const,
-              text: `Failed to list memories: ${(err as Error).message}`,
+              text: shortError("Failed to list memories", err),
             },
           ],
           isError: true,
@@ -378,7 +383,7 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           content: [
             {
               type: "text" as const,
-              text: `Ingestion failed: ${(err as Error).message}`,
+              text: shortError("Ingestion failed", err),
             },
           ],
           isError: true,
@@ -411,7 +416,7 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           content: [
             {
               type: "text" as const,
-              text: `Failed to get stats: ${(err as Error).message}`,
+              text: shortError("Failed to get stats", err),
             },
           ],
           isError: true,
@@ -460,7 +465,7 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           content: [
             {
               type: "text" as const,
-              text: `Failed to create space: ${(err as Error).message}`,
+              text: shortError("Failed to create space", err),
             },
           ],
           isError: true,
@@ -500,7 +505,7 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           content: [
             {
               type: "text" as const,
-              text: `Failed to list spaces: ${(err as Error).message}`,
+              text: shortError("Failed to list spaces", err),
             },
           ],
           isError: true,
@@ -539,7 +544,7 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           content: [
             {
               type: "text" as const,
-              text: `Failed to add member: ${(err as Error).message}`,
+              text: shortError("Failed to add member", err),
             },
           ],
           isError: true,
@@ -577,7 +582,7 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           content: [
             {
               type: "text" as const,
-              text: `Failed to share memory: ${(err as Error).message}`,
+              text: shortError("Failed to share memory", err),
             },
           ],
           isError: true,
@@ -623,7 +628,7 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           content: [
             {
               type: "text" as const,
-              text: `Failed to pull memory: ${(err as Error).message}`,
+              text: shortError("Failed to pull memory", err),
             },
           ],
           isError: true,
@@ -666,7 +671,7 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           content: [
             {
               type: "text" as const,
-              text: `Failed to reshare memory: ${(err as Error).message}`,
+              text: shortError("Failed to reshare memory", err),
             },
           ],
           isError: true,

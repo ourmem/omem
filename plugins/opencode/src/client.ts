@@ -1,5 +1,21 @@
 const DEFAULT_TIMEOUT_MS = 5_000;
 
+const MAX_QUERY_LENGTH = 200; // CJK URL-encodes ~9x; 200 chars → ~1800 bytes < nginx 4K
+const MAX_CONTENT_CHARS = 30_000;
+
+function sanitizeContent(text: string, maxLen: number): string {
+  let clean = text.replace(/<[\w-]+[^>]*>[\s\S]*?<\/[\w-]+>/g, "");
+  clean = clean.replace(/<[\w-]+[^>]*\/>/g, "");
+  clean = clean.replace(/\s+/g, " ").trim();
+  if (clean.length <= maxLen) return clean;
+  return clean.slice(0, maxLen) + "…[truncated]";
+}
+
+function truncateQuery(query: string): string {
+  if (query.length <= MAX_QUERY_LENGTH) return query;
+  return query.slice(0, MAX_QUERY_LENGTH);
+}
+
 export interface IngestOptions {
   mode?: "smart" | "raw";
   agentId?: string;
@@ -114,7 +130,8 @@ export class OmemClient {
     tags?: string[],
     source?: string,
   ): Promise<MemoryDto | null> {
-    return this.post<MemoryDto>("/v1/memories", { content, tags, source });
+    const safeContent = sanitizeContent(content, MAX_CONTENT_CHARS);
+    return this.post<MemoryDto>("/v1/memories", { content: safeContent, tags, source });
   }
 
   async searchMemories(
@@ -123,7 +140,8 @@ export class OmemClient {
     scope?: string,
     tags?: string[],
   ): Promise<SearchResult[]> {
-    const params = new URLSearchParams({ q: query, limit: String(limit) });
+    const safeQ = truncateQuery(query);
+    const params = new URLSearchParams({ q: safeQ, limit: String(limit) });
     if (scope) params.set("scope", scope);
     if (tags && tags.length > 0) params.set("tags", tags.join(","));
     const res = await this.request<SearchResponse>(
@@ -155,8 +173,12 @@ export class OmemClient {
     messages: Array<{ role: string; content: string }>,
     opts: IngestOptions = {},
   ): Promise<unknown> {
+    const safeMessages = messages.map(m => ({
+      role: m.role,
+      content: sanitizeContent(m.content, MAX_CONTENT_CHARS),
+    }));
     return this.post("/v1/memories", {
-      messages,
+      messages: safeMessages,
       mode: opts.mode ?? "smart",
       agent_id: opts.agentId,
       session_id: opts.sessionId,
