@@ -21,7 +21,7 @@ use crate::domain::relation::MemoryRelation;
 use crate::domain::space::Provenance;
 use crate::domain::types::{MemoryState, MemoryType, Tier};
 
-const VECTOR_DIM: i32 = 1024;
+pub const DEFAULT_VECTOR_DIM: i32 = 1024;
 const TABLE_NAME: &str = "memories";
 
 pub struct ListFilter {
@@ -51,11 +51,24 @@ impl Default for ListFilter {
 pub struct LanceStore {
     db: Connection,
     table_name: String,
+    vector_dim: i32,
     fts_indexed: AtomicBool,
 }
 
 impl LanceStore {
+    /// Construct with the default 1024-dim vector schema (back-compat).
     pub async fn new(uri: &str) -> Result<Self, OmemError> {
+        Self::with_dim(uri, DEFAULT_VECTOR_DIM).await
+    }
+
+    /// Construct with an explicit vector dimension. Must match the
+    /// `dimensions()` reported by the active `EmbedService`.
+    pub async fn with_dim(uri: &str, vector_dim: i32) -> Result<Self, OmemError> {
+        if vector_dim <= 0 {
+            return Err(OmemError::Storage(format!(
+                "invalid vector_dim {vector_dim}: must be > 0"
+            )));
+        }
         let mut builder = lancedb::connect(uri);
 
         // For S3-compatible stores (e.g., Alibaba Cloud OSS), pass through
@@ -78,8 +91,14 @@ impl LanceStore {
         Ok(Self {
             db,
             table_name: TABLE_NAME.to_string(),
+            vector_dim,
             fts_indexed: AtomicBool::new(false),
         })
+    }
+
+    /// Dimension of vectors stored in this table.
+    pub fn vector_dim(&self) -> i32 {
+        self.vector_dim
     }
 
     pub async fn init_table(&self) -> Result<(), OmemError> {
@@ -92,7 +111,7 @@ impl LanceStore {
 
         if !existing.contains(&self.table_name) {
             self.db
-                .create_empty_table(&self.table_name, Self::schema())
+                .create_empty_table(&self.table_name, self.schema())
                 .execute()
                 .await
                 .map_err(|e| OmemError::Storage(format!("failed to create table: {e}")))?;
@@ -105,7 +124,22 @@ impl LanceStore {
             .schema()
             .await
             .map_err(|e| OmemError::Storage(format!("failed to get table schema: {e}")))?;
-        let expected_schema = Self::schema();
+        let expected_schema = self.schema();
+
+        // Validate that the existing table's vector column matches our configured dim,
+        // so a model swap that changes dimensions fails loudly at startup rather than
+        // panicking deep in Arrow on the first write/read.
+        if let Ok(vector_field) = current_schema.field_with_name("vector") {
+            if let DataType::FixedSizeList(_, existing_dim) = vector_field.data_type() {
+                if *existing_dim != self.vector_dim {
+                    return Err(OmemError::Storage(format!(
+                        "vector dim mismatch: table has {} but embedder produces {}; \
+                         wipe the table or switch back to the matching embedding model",
+                        existing_dim, self.vector_dim
+                    )));
+                }
+            }
+        }
 
         let missing_fields: Vec<Field> = expected_schema
             .fields()
@@ -127,7 +161,7 @@ impl LanceStore {
         Ok(())
     }
 
-    fn schema() -> Arc<Schema> {
+    fn schema(&self) -> Arc<Schema> {
         Arc::new(Schema::new(vec![
             Field::new("id", DataType::Utf8, false),
             Field::new("content", DataType::Utf8, false),
@@ -138,7 +172,7 @@ impl LanceStore {
                 "vector",
                 DataType::FixedSizeList(
                     Arc::new(Field::new("item", DataType::Float32, true)),
-                    VECTOR_DIM,
+                    self.vector_dim,
                 ),
                 true,
             ),
@@ -178,7 +212,7 @@ impl LanceStore {
             .map_err(|e| OmemError::Storage(format!("failed to open table: {e}")))
     }
 
-    fn memory_to_batch(memory: &Memory, vector: Option<&[f32]>) -> Result<RecordBatch, OmemError> {
+    fn memory_to_batch(&self, memory: &Memory, vector: Option<&[f32]>) -> Result<RecordBatch, OmemError> {
         let tags_json = serde_json::to_string(&memory.tags)
             .map_err(|e| OmemError::Storage(format!("failed to serialize tags: {e}")))?;
         let relations_json = serde_json::to_string(&memory.relations)
@@ -191,13 +225,22 @@ impl LanceStore {
             .map_err(|e| OmemError::Storage(format!("failed to serialize provenance: {e}")))?;
 
         let vec_data: Vec<f32> = match vector {
-            Some(v) => v.to_vec(),
-            None => vec![0.0; VECTOR_DIM as usize],
+            Some(v) => {
+                if v.len() != self.vector_dim as usize {
+                    return Err(OmemError::Storage(format!(
+                        "embedding length {} does not match table vector_dim {}",
+                        v.len(),
+                        self.vector_dim
+                    )));
+                }
+                v.to_vec()
+            }
+            None => vec![0.0; self.vector_dim as usize],
         };
 
         let vector_array = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
             vec![Some(vec_data.into_iter().map(Some).collect::<Vec<_>>())],
-            VECTOR_DIM,
+            self.vector_dim,
         );
 
         let provenance_source_id: Option<&str> = memory
@@ -206,7 +249,7 @@ impl LanceStore {
             .map(|p| p.shared_from_memory.as_str());
 
         RecordBatch::try_new(
-            Self::schema(),
+            self.schema(),
             vec![
                 Arc::new(StringArray::from(vec![memory.id.as_str()])),
                 Arc::new(StringArray::from(vec![memory.content.as_str()])),
@@ -423,9 +466,9 @@ impl LanceStore {
         memory: &Memory,
         vector: Option<&[f32]>,
     ) -> Result<(), OmemError> {
-        let batch = Self::memory_to_batch(memory, vector)?;
+        let batch = self.memory_to_batch(memory, vector)?;
         let table = self.open_table().await?;
-        let reader = RecordBatchIterator::new(vec![Ok(batch)], Self::schema());
+        let reader = RecordBatchIterator::new(vec![Ok(batch)], self.schema());
         table
             .add(Box::new(reader) as Box<dyn arrow_array::RecordBatchReader + Send>)
             .execute()
@@ -518,8 +561,8 @@ impl LanceStore {
             .await
             .map_err(|e| OmemError::Storage(format!("delete for update failed: {e}")))?;
 
-        let batch = Self::memory_to_batch(&mem, vector)?;
-        let reader = RecordBatchIterator::new(vec![Ok(batch)], Self::schema());
+        let batch = self.memory_to_batch(&mem, vector)?;
+        let reader = RecordBatchIterator::new(vec![Ok(batch)], self.schema());
         table
             .add(Box::new(reader) as Box<dyn arrow_array::RecordBatchReader + Send>)
             .execute()
@@ -899,6 +942,56 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_with_dim_stores_correct_dimension() {
+        // 384 is a common smaller-model dim (e.g. all-MiniLM, bge-small).
+        let dir = TempDir::new().expect("temp dir");
+        let store = LanceStore::with_dim(dir.path().to_str().unwrap(), 384)
+            .await
+            .expect("with_dim should construct");
+        store.init_table().await.expect("init_table");
+        assert_eq!(store.vector_dim(), 384);
+
+        // Store + retrieve a memory with a 384-dim vector — should round-trip.
+        let mem = make_memory("t-384", "tiny embedding test");
+        let v = vec![0.1f32; 384];
+        store.create(&mem, Some(&v)).await.expect("create with 384-dim vector");
+        let fetched = store.get_by_id(&mem.id).await.unwrap().expect("memory");
+        assert_eq!(fetched.id, mem.id);
+    }
+
+    #[tokio::test]
+    async fn test_with_dim_rejects_wrong_length_vector() {
+        let dir = TempDir::new().expect("temp dir");
+        let store = LanceStore::with_dim(dir.path().to_str().unwrap(), 384)
+            .await
+            .expect("with_dim");
+        store.init_table().await.expect("init_table");
+
+        let mem = make_memory("t-bad", "wrong-dim test");
+        let v = vec![0.1f32; 768]; // wrong size for a 384-dim table
+        let err = store.create(&mem, Some(&v)).await.expect_err("should reject");
+        let msg = format!("{err:?}");
+        assert!(msg.contains("does not match"), "unexpected error: {msg}");
+    }
+
+    #[tokio::test]
+    async fn test_init_table_rejects_dim_mismatch_on_reopen() {
+        // Create a table at 384 dim, drop, then try to reopen at 1024 dim.
+        let dir = TempDir::new().expect("temp dir");
+        let uri = dir.path().to_str().unwrap().to_string();
+        {
+            let store = LanceStore::with_dim(&uri, 384).await.expect("with_dim 384");
+            store.init_table().await.expect("init_table");
+        }
+        let store = LanceStore::with_dim(&uri, 1024)
+            .await
+            .expect("with_dim 1024");
+        let err = store.init_table().await.expect_err("dim mismatch should error");
+        let msg = format!("{err:?}");
+        assert!(msg.contains("dim mismatch") || msg.contains("vector dim"), "unexpected error: {msg}");
+    }
+
+    #[tokio::test]
     async fn test_create_and_get_by_id() {
         let (store, _dir) = setup().await;
         let mem = make_memory("t-001", "user prefers dark mode");
@@ -925,12 +1018,12 @@ mod tests {
     async fn test_vector_search() {
         let (store, _dir) = setup().await;
 
-        let mut v1 = vec![0.0f32; VECTOR_DIM as usize];
+        let mut v1 = vec![0.0f32; DEFAULT_VECTOR_DIM as usize];
         v1[0] = 1.0;
-        let mut v2 = vec![0.0f32; VECTOR_DIM as usize];
+        let mut v2 = vec![0.0f32; DEFAULT_VECTOR_DIM as usize];
         v2[0] = 0.9;
         v2[1] = 0.1;
-        let mut v3 = vec![0.0f32; VECTOR_DIM as usize];
+        let mut v3 = vec![0.0f32; DEFAULT_VECTOR_DIM as usize];
         v3[1] = 1.0;
 
         let m1 = make_memory("t-001", "closest match");
@@ -941,7 +1034,7 @@ mod tests {
         store.create(&m2, Some(&v2)).await.unwrap();
         store.create(&m3, Some(&v3)).await.unwrap();
 
-        let mut query_vec = vec![0.0f32; VECTOR_DIM as usize];
+        let mut query_vec = vec![0.0f32; DEFAULT_VECTOR_DIM as usize];
         query_vec[0] = 1.0;
 
         let results = store
@@ -1019,9 +1112,9 @@ mod tests {
         let (store_a, _dir_a) = setup().await;
         let (store_b, _dir_b) = setup().await;
 
-        let mut va = vec![0.0f32; VECTOR_DIM as usize];
+        let mut va = vec![0.0f32; DEFAULT_VECTOR_DIM as usize];
         va[0] = 1.0;
-        let mut vb = vec![0.0f32; VECTOR_DIM as usize];
+        let mut vb = vec![0.0f32; DEFAULT_VECTOR_DIM as usize];
         vb[0] = 1.0;
 
         let mem_a = make_memory("tenant_A", "secret data for A");
@@ -1190,7 +1283,7 @@ mod tests {
             .unwrap();
 
         let old_schema = Arc::new(Schema::new(
-            LanceStore::schema()
+            store.schema()
                 .fields()
                 .iter()
                 .filter(|f| f.name() != "version" && f.name() != "provenance_source_id")
@@ -1248,7 +1341,7 @@ mod tests {
             .unwrap();
 
         let old_schema = Arc::new(Schema::new(
-            LanceStore::schema()
+            store.schema()
                 .fields()
                 .iter()
                 .filter(|f| f.name() != "provenance_source_id")

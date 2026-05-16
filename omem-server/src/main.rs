@@ -36,7 +36,19 @@ async fn main() {
     );
 
     let base_uri = config.store_uri();
-    let store_manager = Arc::new(StoreManager::new(&base_uri));
+
+    // Build the embedder first so we can size the Lance vector column to
+    // exactly match what the model produces. Lets users plug in any embedding
+    // model (384-, 768-, 1024-dim, etc.) without recompiling.
+    let embed: Arc<dyn EmbedService> = Arc::from(
+        create_embed_service(&config)
+            .await
+            .expect("failed to create embed service"),
+    );
+    let vector_dim: i32 = embed.dimensions().try_into().expect("embedding dim does not fit in i32");
+    tracing::info!(vector_dim, "embedder reported vector dimension");
+
+    let store_manager = Arc::new(StoreManager::with_vector_dim(&base_uri, vector_dim));
 
     let system_uri = format!("{}/_system", base_uri);
     let tenant_store = Arc::new(
@@ -52,12 +64,6 @@ async fn main() {
             .expect("failed to create SpaceStore"),
     );
     space_store.init_tables().await.expect("failed to init spaces tables");
-
-    let embed: Arc<dyn EmbedService> = Arc::from(
-        create_embed_service(&config)
-            .await
-            .expect("failed to create embed service"),
-    );
 
     let llm: Arc<dyn LlmService> = Arc::from(
         create_llm_service(&config)

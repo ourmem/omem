@@ -4,7 +4,7 @@ use tokio::sync::Mutex;
 
 use crate::domain::error::OmemError;
 use crate::domain::space::{MemberRole, Space, SpaceType};
-use super::lancedb::LanceStore;
+use super::lancedb::{LanceStore, DEFAULT_VECTOR_DIM};
 
 const DEFAULT_MAX_CACHED: usize = 1000;
 
@@ -29,14 +29,22 @@ pub struct AccessibleStore {
 
 pub struct StoreManager {
     base_uri: String,
+    vector_dim: i32,
     cache: Mutex<HashMap<String, CacheEntry>>,
     max_cached: usize,
 }
 
 impl StoreManager {
+    /// Construct with the default 1024-dim vector schema (back-compat for callers
+    /// that don't yet pass an embed-derived dim).
     pub fn new(base_uri: &str) -> Self {
+        Self::with_vector_dim(base_uri, DEFAULT_VECTOR_DIM)
+    }
+
+    pub fn with_vector_dim(base_uri: &str, vector_dim: i32) -> Self {
         Self {
             base_uri: base_uri.trim_end_matches('/').to_string(),
+            vector_dim,
             cache: Mutex::new(HashMap::new()),
             max_cached: DEFAULT_MAX_CACHED,
         }
@@ -46,9 +54,14 @@ impl StoreManager {
     pub fn with_max_cached(base_uri: &str, max_cached: usize) -> Self {
         Self {
             base_uri: base_uri.trim_end_matches('/').to_string(),
+            vector_dim: DEFAULT_VECTOR_DIM,
             cache: Mutex::new(HashMap::new()),
             max_cached,
         }
+    }
+
+    pub fn vector_dim(&self) -> i32 {
+        self.vector_dim
     }
 
     pub async fn get_store(&self, tenant_id: &str) -> Result<Arc<LanceStore>, OmemError> {
@@ -71,7 +84,7 @@ impl StoreManager {
         }
 
         let uri = format!("{}/{}", self.base_uri, tenant_id);
-        let store = LanceStore::new(&uri).await?;
+        let store = LanceStore::with_dim(&uri, self.vector_dim).await?;
         store.init_table().await?;
         let store = Arc::new(store);
 
