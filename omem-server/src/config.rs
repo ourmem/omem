@@ -14,6 +14,8 @@ pub struct OmemConfig {
     pub embed_api_key: String,
     pub embed_base_url: String,
     pub embed_model: String,
+    pub embed_dim: usize,
+    pub embed_timeout_secs: u64,
 }
 
 impl Default for OmemConfig {
@@ -31,6 +33,8 @@ impl Default for OmemConfig {
             embed_api_key: String::new(),
             embed_base_url: String::new(),
             embed_model: String::new(),
+            embed_dim: 1024,
+            embed_timeout_secs: 10,
         }
     }
 }
@@ -54,6 +58,14 @@ impl OmemConfig {
             embed_api_key: env::var("OMEM_EMBED_API_KEY").unwrap_or(defaults.embed_api_key),
             embed_base_url: env::var("OMEM_EMBED_BASE_URL").unwrap_or(defaults.embed_base_url),
             embed_model: env::var("OMEM_EMBED_MODEL").unwrap_or(defaults.embed_model),
+            embed_dim: env::var("OMEM_EMBED_DIM")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(defaults.embed_dim),
+            embed_timeout_secs: env::var("OMEM_EMBED_TIMEOUT_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(defaults.embed_timeout_secs),
         }
     }
 
