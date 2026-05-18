@@ -8,7 +8,7 @@ use crate::embed::service::EmbedService;
 
 const MAX_BATCH_SIZE: usize = 25;
 const MAX_RETRIES: u32 = 3;
-const TIMEOUT: Duration = Duration::from_secs(10);
+const DEFAULT_TIMEOUT_SECS: u64 = 10;
 
 #[derive(Serialize)]
 struct EmbeddingRequest {
@@ -53,8 +53,13 @@ impl OpenAICompatEmbedder {
             );
         }
 
+        let timeout_secs = if config.embed_timeout_secs > 0 {
+            config.embed_timeout_secs
+        } else {
+            DEFAULT_TIMEOUT_SECS
+        };
         let client = reqwest::Client::builder()
-            .timeout(TIMEOUT)
+            .timeout(Duration::from_secs(timeout_secs))
             .default_headers(headers)
             .build()
             .map_err(|e| OmemError::Embedding(format!("failed to build http client: {e}")))?;
@@ -63,7 +68,7 @@ impl OpenAICompatEmbedder {
             client,
             url: format!("{base_url}/v1/embeddings"),
             model: config.embed_model.clone(),
-            dims: 1024,
+            dims: if config.embed_dim > 0 { config.embed_dim } else { 1024 },
         })
     }
 
@@ -170,5 +175,43 @@ mod tests {
         };
         let embedder = OpenAICompatEmbedder::new(&config).unwrap();
         assert_eq!(embedder.url, "http://localhost:8000/v1/embeddings");
+    }
+
+    #[test]
+    fn embed_dim_from_config_overrides_default() {
+        // 384 is a common smaller-model dim (all-MiniLM, bge-small).
+        let config = OmemConfig {
+            embed_base_url: "http://localhost:11434".to_string(),
+            embed_dim: 384,
+            ..OmemConfig::default()
+        };
+        let embedder = OpenAICompatEmbedder::new(&config).unwrap();
+        assert_eq!(embedder.dimensions(), 384);
+    }
+
+    #[test]
+    fn embed_dim_zero_falls_back_to_1024() {
+        // Guards against misconfiguration that would produce zero-length vectors.
+        let config = OmemConfig {
+            embed_base_url: "http://localhost:11434".to_string(),
+            embed_dim: 0,
+            ..OmemConfig::default()
+        };
+        let embedder = OpenAICompatEmbedder::new(&config).unwrap();
+        assert_eq!(embedder.dimensions(), 1024);
+    }
+
+    #[test]
+    fn embed_timeout_zero_falls_back_to_default() {
+        // Constructor must not pass a 0s timeout to reqwest (would block forever
+        // or return immediately depending on version). Defaults to 10s when 0.
+        let config = OmemConfig {
+            embed_base_url: "http://localhost:11434".to_string(),
+            embed_timeout_secs: 0,
+            ..OmemConfig::default()
+        };
+        // Just assert construction succeeds — timeout itself is baked into the
+        // reqwest client and not externally observable without sending traffic.
+        OpenAICompatEmbedder::new(&config).expect("construction with timeout=0 should fall back");
     }
 }
