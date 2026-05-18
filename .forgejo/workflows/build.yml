@@ -1,0 +1,73 @@
+name: Build omem-server
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: heavy
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: '0'
+      # tmpfs-backed target dir — kbuild has /dev/shm sized to 24G (75% of RAM).
+      # Builds run noticeably faster vs writing to /var/tmp on disk; trade is the
+      # cache is lost on reboot, but rust-cache repopulates it from the Actions
+      # cache server on the next run.
+      CARGO_TARGET_DIR: /dev/shm/omem-cargo-target
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure tmpfs target dir exists (lost across reboots)
+        run: mkdir -p "$CARGO_TARGET_DIR"
+
+      - name: Install build deps
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends \
+            build-essential pkg-config libssl-dev \
+            protobuf-compiler libprotobuf-dev \
+            curl ca-certificates
+
+      - name: Install Rust toolchain
+        run: |
+          if ! command -v cargo >/dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          rustup component add rustfmt clippy
+
+      - name: Cache cargo registry + target
+        # Pinned to v2.7.7 — latest v2 still on node20. Newer tags use
+        # node24, which act_runner v6.3.1 rejects: "runs.using ... got node24".
+        uses: https://github.com/Swatinem/rust-cache@v2.7.7
+        with:
+          workspaces: omem-server
+          cache-on-failure: true
+
+      - name: cargo check
+        working-directory: omem-server
+        run: cargo check --all-targets
+
+      - name: cargo clippy (advisory)
+        working-directory: omem-server
+        run: cargo clippy --all-targets
+
+      # Scoped to the modules this PR actually touches. Upstream has
+      # pre-existing test failures unrelated to the schema-dim work
+      # (20× "No provider set" from rustls 0.23 needing
+      # CryptoProvider::install_default(), plus 5 api/space-membership
+      # tests that fail on a fresh upstream main too). Filed as
+      # follow-ups; not this PR's job.
+      - name: cargo test (store + new dim tests)
+        working-directory: omem-server
+        # `store::` matches both store::lancedb::tests::* and
+        # store::manager::tests::*. cargo test only takes one positional
+        # filter pattern.
+        run: 'cargo test --no-fail-fast --lib store::'
