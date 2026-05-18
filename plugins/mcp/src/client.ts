@@ -55,7 +55,7 @@ export class OmemClient {
 
       if (!res.ok) {
         const body = await res.text().catch(() => "");
-        throw new Error(`${res.status} ${res.statusText}: ${body}`);
+        throw new Error(`${res.status} ${res.statusText}: ${body.slice(0, 200)}`);
       }
 
       if (res.status === 204) return null;
@@ -84,7 +84,8 @@ export class OmemClient {
     scope?: string,
     tags?: string[],
   ): Promise<SearchResult[]> {
-    const params = new URLSearchParams({ q: query, limit: String(limit) });
+    const safeQ = query.length > 500 ? query.slice(0, 500) : query;
+    const params = new URLSearchParams({ q: safeQ, limit: String(limit) });
     if (scope) params.set("scope", scope);
     if (tags && tags.length > 0) params.set("tags", tags.join(","));
     const res = await this.request<SearchResponse>(
