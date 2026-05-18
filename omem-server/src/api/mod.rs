@@ -51,7 +51,21 @@ mod tests {
         }
     }
 
+    // rustls 0.23 requires a CryptoProvider to be installed before any TLS
+    // handshake. main() installs ring; tests bypass main(), so without this
+    // every test that reaches object_store (via LanceStore::new) fails with
+    // "no process-level CryptoProvider available". Guarded by Once so the
+    // 25 tests sharing this binary don't race.
+    fn install_crypto_provider() {
+        use std::sync::Once;
+        static INIT: Once = Once::new();
+        INIT.call_once(|| {
+            let _ = rustls::crypto::ring::default_provider().install_default();
+        });
+    }
+
     async fn setup_app() -> (axum::Router, tempfile::TempDir) {
+        install_crypto_provider();
         let dir = tempfile::TempDir::new().expect("temp dir");
         let uri = dir.path().to_str().expect("path");
 
