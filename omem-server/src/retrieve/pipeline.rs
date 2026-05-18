@@ -298,36 +298,24 @@ impl RetrievalPipeline {
         (fused, stage)
     }
 
-    /// Normalize RRF scores to [0, 1] range so downstream thresholds (min_score, hard_cutoff) work correctly.
-    /// RRF raw scores are tiny (max ~0.033 for K=60 with 2 legs), but thresholds expect [0, 1].
-    /// - Multiple results: min-max normalization (best=1.0, worst=0.0)
-    /// - Single result: scale by RRF_SCALE (40.0) and clamp to [0, 1]
+    /// Normalize RRF scores into [0, 1] while preserving absolute quality signal.
+    ///
+    /// Raw RRF scores are tiny (~1/(K+1) ≈ 0.0164 for the ideal dual-leg rank-1
+    /// match with K=60), but downstream thresholds (min_score, hard_cutoff) and
+    /// LLM consumers both expect a [0, 1] range. We scale by RRF_SCALE so the
+    /// best-possible hybrid match maps to ~1.0 and clamp; everything weaker
+    /// stays proportionally smaller. Unlike min-max normalization this does not
+    /// force the top result to 1.0 when no genuinely-good matches exist.
+    ///
+    /// RRF_SCALE = rrf_k + 1, so for the default rrf_k=60 and weights summing
+    /// to 1.0, an item ranked #1 in both legs scores exactly 1.0.
     fn stage_rrf_normalize(mut entries: Vec<FusionEntry>) -> (Vec<FusionEntry>, StageTrace) {
-        const RRF_SCALE: f32 = 40.0;
+        const RRF_SCALE: f32 = 61.0;
         let stage_start = Instant::now();
         let input_count = entries.len();
 
-        if entries.len() > 1 {
-            let max_score = entries
-                .iter()
-                .map(|e| e.rrf_score)
-                .fold(f32::NEG_INFINITY, f32::max);
-            let min_score = entries
-                .iter()
-                .map(|e| e.rrf_score)
-                .fold(f32::INFINITY, f32::min);
-            let range = max_score - min_score;
-            if range > 0.0 {
-                for entry in &mut entries {
-                    entry.rrf_score = (entry.rrf_score - min_score) / range;
-                }
-            } else if max_score > 0.0 {
-                for entry in &mut entries {
-                    entry.rrf_score = 1.0;
-                }
-            }
-        } else if entries.len() == 1 {
-            entries[0].rrf_score = (entries[0].rrf_score * RRF_SCALE).min(1.0);
+        for entry in &mut entries {
+            entry.rrf_score = (entry.rrf_score * RRF_SCALE).clamp(0.0, 1.0);
         }
 
         let score_range = fusion_score_range(&entries);
@@ -1159,10 +1147,15 @@ mod tests {
 
     #[test]
     fn test_rrf_normalize_multiple_results() {
+        // Scores must reflect absolute quality, not ordinal position. The "best"
+        // entry here is the ideal dual-leg rank-1 RRF score (1/61), which should
+        // map to ~1.0; weaker entries should map proportionally lower, NOT to 0.0
+        // (that was the old min-max behavior that destroyed absolute signal).
+        let ideal = 1.0 / 61.0; // best possible RRF for K=60, weights summing to 1
         let entries = vec![
-            make_entry("best", 0.033),
-            make_entry("mid", 0.020),
-            make_entry("worst", 0.010),
+            make_entry("best", ideal),
+            make_entry("mid", ideal * 0.5),
+            make_entry("worst", ideal * 0.25),
         ];
 
         let (result, stage) = RetrievalPipeline::stage_rrf_normalize(entries);
@@ -1170,42 +1163,103 @@ mod tests {
         assert_eq!(result.len(), 3);
 
         let best = result.iter().find(|e| e.memory.content == "best").unwrap();
-        let worst = result.iter().find(|e| e.memory.content == "worst").unwrap();
         let mid = result.iter().find(|e| e.memory.content == "mid").unwrap();
+        let worst = result.iter().find(|e| e.memory.content == "worst").unwrap();
 
-        assert!((best.rrf_score - 1.0).abs() < 1e-6, "best should be 1.0, got {}", best.rrf_score);
-        assert!((worst.rrf_score - 0.0).abs() < 1e-6, "worst should be 0.0, got {}", worst.rrf_score);
-        assert!(mid.rrf_score > 0.0 && mid.rrf_score < 1.0, "mid should be between 0 and 1, got {}", mid.rrf_score);
+        assert!(
+            (best.rrf_score - 1.0).abs() < 1e-4,
+            "ideal RRF should map to ~1.0, got {}",
+            best.rrf_score
+        );
+        assert!(
+            (mid.rrf_score - 0.5).abs() < 1e-4,
+            "half-ideal RRF should map to ~0.5, got {}",
+            mid.rrf_score
+        );
+        assert!(
+            (worst.rrf_score - 0.25).abs() < 1e-4,
+            "quarter-ideal RRF should map to ~0.25, got {}",
+            worst.rrf_score
+        );
+        assert!(best.rrf_score > mid.rrf_score && mid.rrf_score > worst.rrf_score);
+    }
+
+    #[test]
+    fn test_rrf_normalize_weak_top_not_inflated() {
+        // The whole point of the fix: a query with only weak matches must NOT
+        // see its top result inflated to 1.0. Old min-max behavior did this and
+        // produced misleading confidence signals for downstream consumers.
+        let entries = vec![
+            make_entry("weak-top", 0.003),
+            make_entry("weak-mid", 0.002),
+            make_entry("weak-bot", 0.001),
+        ];
+
+        let (result, _) = RetrievalPipeline::stage_rrf_normalize(entries);
+        let top = result.iter().find(|e| e.memory.content == "weak-top").unwrap();
+        assert!(
+            top.rrf_score < 0.25,
+            "weak top result should stay below 0.25, got {}",
+            top.rrf_score
+        );
     }
 
     #[test]
     fn test_rrf_normalize_single_result() {
-        let entries = vec![make_entry("only", 0.016)];
+        // Single result with the ideal dual-leg rank-1 score (1/61) should map
+        // to ~1.0 — same semantics as in the multi-result case.
+        let entries = vec![make_entry("only", 1.0 / 61.0)];
 
         let (result, _) = RetrievalPipeline::stage_rrf_normalize(entries);
         assert_eq!(result.len(), 1);
         let score = result[0].rrf_score;
-        assert!((score - 0.64).abs() < 1e-4, "0.016 * 40 = 0.64, got {score}");
+        assert!((score - 1.0).abs() < 1e-4, "1/61 * 61 = 1.0, got {score}");
     }
 
     #[test]
     fn test_rrf_normalize_single_result_clamped() {
+        // Pinned-boost or unusual fusion may push raw RRF above 1/61; clamp
+        // protects [0, 1] invariant.
         let entries = vec![make_entry("high", 0.05)];
 
         let (result, _) = RetrievalPipeline::stage_rrf_normalize(entries);
-        assert!((result[0].rrf_score - 1.0).abs() < 1e-6, "should clamp to 1.0, got {}", result[0].rrf_score);
+        assert!(
+            (result[0].rrf_score - 1.0).abs() < 1e-6,
+            "should clamp to 1.0, got {}",
+            result[0].rrf_score
+        );
     }
 
     #[test]
     fn test_rrf_normalize_equal_scores() {
+        // Two equally-good ideal matches should both reach ~1.0 (under the old
+        // min-max behavior they would too, but for the wrong reason: range=0
+        // shortcut). Under scale-and-clamp they reach 1.0 because they're
+        // actually ideal.
         let entries = vec![
-            make_entry("a", 0.016),
-            make_entry("b", 0.016),
+            make_entry("a", 1.0 / 61.0),
+            make_entry("b", 1.0 / 61.0),
         ];
 
         let (result, _) = RetrievalPipeline::stage_rrf_normalize(entries);
-        assert!((result[0].rrf_score - 1.0).abs() < 1e-6);
-        assert!((result[1].rrf_score - 1.0).abs() < 1e-6);
+        assert!((result[0].rrf_score - 1.0).abs() < 1e-4);
+        assert!((result[1].rrf_score - 1.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_rrf_normalize_equal_weak_scores() {
+        // Equal but weak scores must NOT all be promoted to 1.0 (old min-max
+        // behavior). Each should stay proportional to its raw RRF.
+        let entries = vec![
+            make_entry("a", 0.005),
+            make_entry("b", 0.005),
+        ];
+
+        let (result, _) = RetrievalPipeline::stage_rrf_normalize(entries);
+        let expected = 0.005_f32 * 61.0;
+        assert!((result[0].rrf_score - expected).abs() < 1e-4);
+        assert!((result[1].rrf_score - expected).abs() < 1e-4);
+        assert!(result[0].rrf_score < 0.5);
     }
 
     #[test]
