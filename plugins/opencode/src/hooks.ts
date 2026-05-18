@@ -120,9 +120,9 @@ export function keywordDetectionHook() {
       .map((p) => p.text)
       .join(" ");
 
-    // Store first message for semantic search
+    // Store first message for semantic search (truncate to prevent 414 on long messages)
     if (!firstMessages.has(input.sessionID)) {
-      firstMessages.set(input.sessionID, textContent);
+      firstMessages.set(input.sessionID, textContent.slice(0, 500));
     }
 
     if (detectKeyword(textContent)) {
