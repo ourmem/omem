@@ -513,7 +513,7 @@ pub async fn batch_share(
     use futures::stream::{self, StreamExt};
 
     let results: Vec<(String, Result<Memory, OmemError>)> =
-        stream::iter(body.memory_ids.into_iter())
+        stream::iter(body.memory_ids)
             .map(|mem_id| {
                 let source_store = source_store.clone();
                 let target_store = target_store.clone();
@@ -921,7 +921,7 @@ pub async fn share_all(
 
     use futures::stream::{self, StreamExt};
 
-    let results: Vec<(bool, bool)> = stream::iter(filtered_ids.into_iter())
+    let results: Vec<(bool, bool)> = stream::iter(filtered_ids)
         .map(|mem_id| {
             let source_store = source_store.clone();
             let target_store = target_store.clone();
@@ -1087,7 +1087,7 @@ pub async fn share_all_to_user(
 
     use futures::stream::{self, StreamExt};
 
-    let results: Vec<(bool, bool)> = stream::iter(filtered_ids.into_iter())
+    let results: Vec<(bool, bool)> = stream::iter(filtered_ids)
         .map(|mem_id| {
             let source_store = source_store.clone();
             let target_store = target_store.clone();
@@ -1260,7 +1260,7 @@ pub async fn org_publish(
 
         use futures::stream::{self, StreamExt};
 
-        let results: Vec<(bool, bool)> = stream::iter(memory_ids.clone().into_iter())
+        let results: Vec<(bool, bool)> = stream::iter(memory_ids.clone())
             .map(|mem_id| {
                 let source_store = source_store.clone();
                 let target_store = target_store.clone();
