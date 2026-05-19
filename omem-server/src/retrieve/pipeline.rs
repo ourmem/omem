@@ -1184,7 +1184,10 @@ mod tests {
         ];
 
         let (result, _) = RetrievalPipeline::stage_rrf_normalize(entries);
-        let top = result.iter().find(|e| e.memory.content == "weak-top").unwrap();
+        let top = result
+            .iter()
+            .find(|e| e.memory.content == "weak-top")
+            .unwrap();
         assert!(
             top.rrf_score < 0.25,
             "weak top result should stay below 0.25, got {}",
