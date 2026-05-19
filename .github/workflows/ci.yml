@@ -14,6 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install build deps
+        # lance-encoding's build.rs invokes protoc to generate prost
+        # bindings; without this, `cargo clippy` and `cargo test` fail
+        # with "Could not find `protoc`" once they get past the fmt step.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends protobuf-compiler
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
