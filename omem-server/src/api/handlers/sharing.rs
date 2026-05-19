@@ -512,32 +512,31 @@ pub async fn batch_share(
 
     use futures::stream::{self, StreamExt};
 
-    let results: Vec<(String, Result<Memory, OmemError>)> =
-        stream::iter(body.memory_ids)
-            .map(|mem_id| {
-                let source_store = source_store.clone();
-                let target_store = target_store.clone();
-                let space_store = state.space_store.clone();
-                let target_space_id = target_space.id.clone();
-                let user_id = auth.tenant_id.clone();
-                let agent_id = agent_id.clone();
-                async move {
-                    let result = share_single(
-                        &source_store,
-                        &target_store,
-                        &space_store,
-                        &mem_id,
-                        &target_space_id,
-                        &user_id,
-                        &agent_id,
-                    )
-                    .await;
-                    (mem_id, result)
-                }
-            })
-            .buffer_unordered(10)
-            .collect()
-            .await;
+    let results: Vec<(String, Result<Memory, OmemError>)> = stream::iter(body.memory_ids)
+        .map(|mem_id| {
+            let source_store = source_store.clone();
+            let target_store = target_store.clone();
+            let space_store = state.space_store.clone();
+            let target_space_id = target_space.id.clone();
+            let user_id = auth.tenant_id.clone();
+            let agent_id = agent_id.clone();
+            async move {
+                let result = share_single(
+                    &source_store,
+                    &target_store,
+                    &space_store,
+                    &mem_id,
+                    &target_space_id,
+                    &user_id,
+                    &agent_id,
+                )
+                .await;
+                (mem_id, result)
+            }
+        })
+        .buffer_unordered(10)
+        .collect()
+        .await;
 
     let mut succeeded = Vec::new();
     let mut failed = Vec::new();
