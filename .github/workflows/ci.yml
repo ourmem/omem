@@ -16,11 +16,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install build deps
         # lance-encoding's build.rs invokes protoc to generate prost
-        # bindings; without this, `cargo clippy` and `cargo test` fail
-        # with "Could not find `protoc`" once they get past the fmt step.
+        # bindings. `protobuf-compiler` provides the `protoc` binary;
+        # `libprotobuf-dev` provides the well-known types (e.g.
+        # google/protobuf/empty.proto) under /usr/include/google/protobuf/
+        # that lance-encoding's .proto files import. Both are needed.
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends protobuf-compiler
+          sudo apt-get install -y --no-install-recommends \
+            protobuf-compiler libprotobuf-dev
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
