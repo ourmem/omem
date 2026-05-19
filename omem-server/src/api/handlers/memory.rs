@@ -37,6 +37,7 @@ pub struct CreateMemoryBody {
     #[serde(default)]
     pub tags: Option<Vec<String>>,
     pub source: Option<String>,
+    pub memory_type: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -95,6 +96,7 @@ pub struct UpdateMemoryBody {
     pub content: Option<String>,
     pub tags: Option<Vec<String>>,
     pub state: Option<String>,
+    pub memory_type: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -204,10 +206,15 @@ pub async fn create_memory(
         return Err(OmemError::Validation("content cannot be empty".to_string()));
     }
 
+    let memory_type = match body.memory_type {
+        Some(s) => s.parse().map_err(OmemError::Validation)?,
+        None => MemoryType::Pinned,
+    };
+
     let mut memory = Memory::new(
         &content,
         Category::Preferences,
-        MemoryType::Pinned,
+        memory_type,
         &auth.tenant_id,
     );
     memory.tags = body.tags.unwrap_or_default();
@@ -549,6 +556,12 @@ pub async fn update_memory(
 
     if let Some(state_str) = body.state {
         memory.state = state_str
+            .parse()
+            .map_err(|e: String| OmemError::Validation(e))?;
+    }
+
+    if let Some(memory_type_str) = body.memory_type {
+        memory.memory_type = memory_type_str
             .parse()
             .map_err(|e: String| OmemError::Validation(e))?;
     }

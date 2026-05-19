@@ -51,7 +51,16 @@ mod tests {
         }
     }
 
+    fn install_crypto_provider() {
+        use std::sync::Once;
+        static INIT: Once = Once::new();
+        INIT.call_once(|| {
+            let _ = rustls::crypto::ring::default_provider().install_default();
+        });
+    }
+
     async fn setup_app() -> (axum::Router, tempfile::TempDir) {
+        install_crypto_provider();
         let dir = tempfile::TempDir::new().expect("temp dir");
         let uri = dir.path().to_str().expect("path");
 
@@ -479,6 +488,153 @@ mod tests {
         let json: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
         assert_eq!(json["content"], "updated");
         assert_eq!(json["tags"][0], "new-tag");
+    }
+
+    #[tokio::test]
+    async fn test_create_memory_with_type() {
+        let (app, _dir) = setup_app().await;
+        let api_key = create_test_tenant(&app).await;
+
+        let create_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/memories")
+                    .header("content-type", "application/json")
+                    .header("x-api-key", &api_key)
+                    .body(Body::from(
+                        r#"{"content":"an insight","memory_type":"insight"}"#,
+                    ))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        let bytes = create_resp
+            .into_body()
+            .collect()
+            .await
+            .expect("body")
+            .to_bytes();
+        let created: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        assert_eq!(created["memory_type"], "insight");
+
+        let default_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/memories")
+                    .header("content-type", "application/json")
+                    .header("x-api-key", &api_key)
+                    .body(Body::from(r#"{"content":"default"}"#))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        let bytes = default_resp
+            .into_body()
+            .collect()
+            .await
+            .expect("body")
+            .to_bytes();
+        let default_created: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        assert_eq!(default_created["memory_type"], "pinned");
+    }
+
+    #[tokio::test]
+    async fn test_update_memory_type() {
+        let (app, _dir) = setup_app().await;
+        let api_key = create_test_tenant(&app).await;
+
+        let create_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/memories")
+                    .header("content-type", "application/json")
+                    .header("x-api-key", &api_key)
+                    .body(Body::from(r#"{"content":"originally pinned"}"#))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        let bytes = create_resp
+            .into_body()
+            .collect()
+            .await
+            .expect("body")
+            .to_bytes();
+        let created: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        let memory_id = created["id"].as_str().expect("id");
+        assert_eq!(created["memory_type"], "pinned");
+
+        let update_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/v1/memories/{memory_id}"))
+                    .header("content-type", "application/json")
+                    .header("x-api-key", &api_key)
+                    .body(Body::from(r#"{"memory_type":"insight"}"#))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(update_resp.status(), StatusCode::OK);
+        let bytes = update_resp
+            .into_body()
+            .collect()
+            .await
+            .expect("body")
+            .to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        assert_eq!(json["memory_type"], "insight");
+    }
+
+    #[tokio::test]
+    async fn test_update_memory_type_invalid() {
+        let (app, _dir) = setup_app().await;
+        let api_key = create_test_tenant(&app).await;
+
+        let create_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/memories")
+                    .header("content-type", "application/json")
+                    .header("x-api-key", &api_key)
+                    .body(Body::from(r#"{"content":"test"}"#))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        let bytes = create_resp
+            .into_body()
+            .collect()
+            .await
+            .expect("body")
+            .to_bytes();
+        let created: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        let memory_id = created["id"].as_str().expect("id");
+
+        let update_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/v1/memories/{memory_id}"))
+                    .header("content-type", "application/json")
+                    .header("x-api-key", &api_key)
+                    .body(Body::from(r#"{"memory_type":"bogus"}"#))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(update_resp.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
