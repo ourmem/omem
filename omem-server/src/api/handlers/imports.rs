@@ -365,7 +365,9 @@ pub async fn cross_reconcile(
         };
 
         // limit=6 to account for self appearing in results
-        let similar = store.vector_search(query_vec, 6, 0.85, None, None).await?;
+        let similar = store
+            .vector_search(query_vec, 6, 0.85, None, None, false)
+            .await?;
 
         for (candidate, score) in &similar {
             if candidate.id == memory.id {

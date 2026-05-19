@@ -23,6 +23,10 @@ pub struct SearchRequest {
     pub tags_filter: Option<Vec<String>>,
     pub source_filter: Option<String>,
     pub agent_id_filter: Option<String>,
+    /// When true, surface memories whose `state` is `superseded` alongside
+    /// active ones. Default (false) hides them so consumers don't see the
+    /// stale half of a replace-and-consolidate operation.
+    pub include_superseded: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -188,10 +192,12 @@ impl RetrievalPipeline {
         let stage_start = Instant::now();
         let scope = request.scope_filter.as_deref();
 
+        let include_superseded = request.include_superseded;
+
         let vector_fut = async {
             if let Some(ref qv) = request.query_vector {
                 self.store
-                    .vector_search(qv, fetch_limit, 0.0, scope, None)
+                    .vector_search(qv, fetch_limit, 0.0, scope, None, include_superseded)
                     .await
             } else {
                 Ok(Vec::new())
@@ -200,7 +206,7 @@ impl RetrievalPipeline {
 
         let bm25_fut = async {
             self.store
-                .fts_search(&request.query, fetch_limit, scope, None)
+                .fts_search(&request.query, fetch_limit, scope, None, include_superseded)
                 .await
         };
 
@@ -746,6 +752,7 @@ mod tests {
             tags_filter: None,
             source_filter: None,
             agent_id_filter: None,
+            include_superseded: false,
         };
 
         let results = pipeline.search(&request).await.expect("search");
@@ -809,6 +816,7 @@ mod tests {
             tags_filter: None,
             source_filter: None,
             agent_id_filter: None,
+            include_superseded: false,
         };
 
         let results = pipeline.search(&request).await.expect("search");
@@ -886,6 +894,7 @@ mod tests {
             tags_filter: None,
             source_filter: None,
             agent_id_filter: None,
+            include_superseded: false,
         };
 
         let results = pipeline
@@ -920,6 +929,7 @@ mod tests {
             tags_filter: None,
             source_filter: None,
             agent_id_filter: None,
+            include_superseded: false,
         };
 
         let results = pipeline.search(&request).await.expect("search");
@@ -962,6 +972,7 @@ mod tests {
             tags_filter: None,
             source_filter: None,
             agent_id_filter: None,
+            include_superseded: false,
         };
 
         let results = pipeline
@@ -1184,7 +1195,10 @@ mod tests {
         ];
 
         let (result, _) = RetrievalPipeline::stage_rrf_normalize(entries);
-        let top = result.iter().find(|e| e.memory.content == "weak-top").unwrap();
+        let top = result
+            .iter()
+            .find(|e| e.memory.content == "weak-top")
+            .unwrap();
         assert!(
             top.rrf_score < 0.25,
             "weak top result should stay below 0.25, got {}",

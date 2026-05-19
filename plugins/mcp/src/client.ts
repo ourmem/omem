@@ -69,10 +69,13 @@ export class OmemClient {
     content: string,
     tags?: string[],
     source?: string,
+    replaces?: string[],
   ): Promise<MemoryDto> {
+    const body: Record<string, unknown> = { content, tags, source };
+    if (replaces && replaces.length > 0) body.replaces = replaces;
     const result = await this.request<MemoryDto>("/v1/memories", {
       method: "POST",
-      body: JSON.stringify({ content, tags, source }),
+      body: JSON.stringify(body),
     });
     if (!result) throw new Error("Failed to create memory");
     return result;

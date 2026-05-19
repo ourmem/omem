@@ -25,7 +25,7 @@ impl ProfileService {
     }
 
     pub async fn get_profile(&self, query: Option<&str>) -> Result<ProfileResponse, OmemError> {
-        let all_memories = self.store.list(200, 0).await?;
+        let all_memories = self.store.list(200, 0, false).await?;
 
         let mut static_memories: Vec<_> = all_memories
             .iter()
@@ -71,7 +71,7 @@ impl ProfileService {
             Some(q) => {
                 let results = self
                     .store
-                    .fts_search(q, 10, None, None)
+                    .fts_search(q, 10, None, None, false)
                     .await
                     .unwrap_or_default();
                 Some(
