@@ -214,7 +214,8 @@ impl GitHubConnector {
                 files = all_files.join(", ")
             );
 
-            let mut memory = Memory::new(&content, Category::Events, MemoryType::Session, tenant_id);
+            let mut memory =
+                Memory::new(&content, Category::Events, MemoryType::Session, tenant_id);
             memory.tags = vec![
                 format!("repo:{repo_name}"),
                 "github:push".to_string(),
@@ -223,9 +224,7 @@ impl GitHubConnector {
             memory.source = Some(format!("github:{repo_name}"));
 
             for file in &all_files {
-                if let Some(lang) =
-                    Self::detect_language_from_filename(file)
-                {
+                if let Some(lang) = Self::detect_language_from_filename(file) {
                     let code_content = format!("[File changed: {file} in commit {commit_id}]");
                     let mut file_memory = Memory::new(
                         &code_content,
@@ -288,11 +287,7 @@ impl GitHubConnector {
                 .as_ref()
                 .and_then(|u| u.login.clone())
                 .unwrap_or_else(|| "unknown".to_string());
-            let issue_number = payload
-                .issue
-                .as_ref()
-                .and_then(|i| i.number)
-                .unwrap_or(0);
+            let issue_number = payload.issue.as_ref().and_then(|i| i.number).unwrap_or(0);
 
             let content = format!("Comment on issue #{issue_number} by {author}:\n{body}");
 
@@ -368,8 +363,7 @@ impl GitHubConnector {
                 .unwrap_or(0);
 
             if !body.is_empty() {
-                let content =
-                    format!("Review on PR #{pr_number} by {author} ({state}):\n{body}");
+                let content = format!("Review on PR #{pr_number} by {author} ({state}):\n{body}");
 
                 let mut memory =
                     Memory::new(&content, Category::Events, MemoryType::Session, tenant_id);
@@ -451,10 +445,7 @@ impl GitHubConnector {
         }
     }
 
-    pub async fn store_memories(
-        &self,
-        memories: Vec<Memory>,
-    ) -> Result<usize, OmemError> {
+    pub async fn store_memories(&self, memories: Vec<Memory>) -> Result<usize, OmemError> {
         let count = memories.len();
         for memory in &memories {
             let vectors = self
@@ -475,11 +466,7 @@ mod tests {
 
     async fn make_connector() -> (GitHubConnector, tempfile::TempDir) {
         let dir = tempfile::TempDir::new().unwrap();
-        let store = Arc::new(
-            LanceStore::new(dir.path().to_str().unwrap())
-                .await
-                .unwrap(),
-        );
+        let store = Arc::new(LanceStore::new(dir.path().to_str().unwrap()).await.unwrap());
         store.init_table().await.unwrap();
 
         let connector = GitHubConnector {
@@ -631,7 +618,10 @@ mod tests {
             .iter()
             .find(|m| m.tags.contains(&"github:issue_comment".to_string()));
         assert!(comment_mem.is_some());
-        assert!(comment_mem.unwrap().content.contains("I can reproduce this"));
+        assert!(comment_mem
+            .unwrap()
+            .content
+            .contains("I can reproduce this"));
     }
 
     #[tokio::test]

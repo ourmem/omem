@@ -95,10 +95,8 @@ impl LlmService for BedrockLlm {
                 .await
             {
                 Ok(output) => {
-                    let resp: ClaudeResponse =
-                        serde_json::from_slice(output.body().as_ref()).map_err(|e| {
-                            OmemError::Llm(format!("failed to parse response: {e}"))
-                        })?;
+                    let resp: ClaudeResponse = serde_json::from_slice(output.body().as_ref())
+                        .map_err(|e| OmemError::Llm(format!("failed to parse response: {e}")))?;
                     let text = resp
                         .content
                         .into_iter()
@@ -116,9 +114,7 @@ impl LlmService for BedrockLlm {
                         last_err = Some(format!("throttled: {e}"));
                         continue;
                     }
-                    return Err(OmemError::Llm(format!(
-                        "bedrock invoke_model failed: {e}"
-                    )));
+                    return Err(OmemError::Llm(format!("bedrock invoke_model failed: {e}")));
                 }
             }
         }

@@ -89,9 +89,10 @@ impl AdmissionControl {
         };
 
         let embeddings = self.embed.embed(&[text.to_string()]).await?;
-        let query_vec = embeddings.into_iter().next().ok_or_else(|| {
-            OmemError::Internal("embedding returned empty result".to_string())
-        })?;
+        let query_vec = embeddings
+            .into_iter()
+            .next()
+            .ok_or_else(|| OmemError::Internal("embedding returned empty result".to_string()))?;
 
         let search_results = self
             .store
@@ -165,12 +166,10 @@ fn score_utility(text: &str) -> f32 {
     }
 
     let words: Vec<&str> = trimmed.split_whitespace().collect();
-    let has_proper_nouns = words.iter().skip(1).any(|w| {
-        w.chars()
-            .next()
-            .map(|c| c.is_uppercase())
-            .unwrap_or(false)
-    });
+    let has_proper_nouns = words
+        .iter()
+        .skip(1)
+        .any(|w| w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false));
     if has_proper_nouns {
         score = score.max(0.8);
     }
@@ -287,11 +286,13 @@ mod tests {
         let vec = vec![1.0; 1024];
         let embed = Arc::new(MockEmbed::new(vec.clone()));
 
-        let existing = Memory::new("some existing fact", Category::Events, MemoryType::Insight, "t");
-        store
-            .create(&existing, Some(&vec))
-            .await
-            .expect("create");
+        let existing = Memory::new(
+            "some existing fact",
+            Category::Events,
+            MemoryType::Insight,
+            "t",
+        );
+        store.create(&existing, Some(&vec)).await.expect("create");
 
         let ctrl = AdmissionControl::new(AdmissionPreset::Balanced, embed, store);
 
@@ -363,8 +364,7 @@ mod tests {
 
         let balanced =
             AdmissionControl::new(AdmissionPreset::Balanced, embed.clone(), store.clone());
-        let conservative =
-            AdmissionControl::new(AdmissionPreset::Conservative, embed, store);
+        let conservative = AdmissionControl::new(AdmissionPreset::Conservative, embed, store);
 
         let r_balanced = balanced.evaluate(text, &cat, None).await.expect("eval");
         let r_conservative = conservative.evaluate(text, &cat, None).await.expect("eval");

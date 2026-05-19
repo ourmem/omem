@@ -462,9 +462,7 @@ mod tests {
                     .uri(format!("/v1/memories/{memory_id}"))
                     .header("content-type", "application/json")
                     .header("x-api-key", &api_key)
-                    .body(Body::from(
-                        r#"{"content":"updated","tags":["new-tag"]}"#,
-                    ))
+                    .body(Body::from(r#"{"content":"updated","tags":["new-tag"]}"#))
                     .expect("request"),
             )
             .await
@@ -552,7 +550,10 @@ mod tests {
             .to_bytes();
         let json: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
         assert!(json["static_facts"].as_array().expect("array").is_empty());
-        assert!(json["dynamic_context"].as_array().expect("array").is_empty());
+        assert!(json["dynamic_context"]
+            .as_array()
+            .expect("array")
+            .is_empty());
     }
 
     #[tokio::test]
@@ -611,9 +612,14 @@ mod tests {
             .await
             .expect("response");
 
-        assert!(response.headers().contains_key("access-control-allow-origin"));
+        assert!(response
+            .headers()
+            .contains_key("access-control-allow-origin"));
         assert_eq!(
-            response.headers().get("access-control-allow-origin").unwrap(),
+            response
+                .headers()
+                .get("access-control-allow-origin")
+                .unwrap(),
             "*"
         );
     }
@@ -874,9 +880,7 @@ mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri(format!(
-                        "/v1/stats/decay?memory_id={memory_id}&points=30"
-                    ))
+                    .uri(format!("/v1/stats/decay?memory_id={memory_id}&points=30"))
                     .header("x-api-key", &api_key)
                     .body(Body::empty())
                     .expect("request"),
@@ -1049,9 +1053,7 @@ mod tests {
                     .uri("/v1/spaces")
                     .header("content-type", "application/json")
                     .header("x-api-key", &api_key)
-                    .body(Body::from(
-                        r#"{"name":"Backend Team","space_type":"team"}"#,
-                    ))
+                    .body(Body::from(r#"{"name":"Backend Team","space_type":"team"}"#))
                     .expect("request"),
             )
             .await
@@ -1085,9 +1087,7 @@ mod tests {
                     .uri("/v1/spaces")
                     .header("content-type", "application/json")
                     .header("x-api-key", &api_key)
-                    .body(Body::from(
-                        r#"{"name":"Team A","space_type":"team"}"#,
-                    ))
+                    .body(Body::from(r#"{"name":"Team A","space_type":"team"}"#))
                     .expect("request"),
             )
             .await
@@ -1100,9 +1100,7 @@ mod tests {
                     .uri("/v1/spaces")
                     .header("content-type", "application/json")
                     .header("x-api-key", &api_key)
-                    .body(Body::from(
-                        r#"{"name":"Team B","space_type":"team"}"#,
-                    ))
+                    .body(Body::from(r#"{"name":"Team B","space_type":"team"}"#))
                     .expect("request"),
             )
             .await
@@ -1146,9 +1144,7 @@ mod tests {
                     .uri("/v1/spaces")
                     .header("content-type", "application/json")
                     .header("x-api-key", &api_key)
-                    .body(Body::from(
-                        r#"{"name":"Team Space","space_type":"team"}"#,
-                    ))
+                    .body(Body::from(r#"{"name":"Team Space","space_type":"team"}"#))
                     .expect("request"),
             )
             .await
@@ -1171,9 +1167,7 @@ mod tests {
                     .uri(format!("/v1/spaces/{space_id}/members"))
                     .header("content-type", "application/json")
                     .header("x-api-key", &api_key)
-                    .body(Body::from(
-                        r#"{"user_id":"bob","role":"member"}"#,
-                    ))
+                    .body(Body::from(r#"{"user_id":"bob","role":"member"}"#))
                     .expect("request"),
             )
             .await
@@ -1341,9 +1335,7 @@ mod tests {
                     .uri("/v1/spaces")
                     .header("content-type", "application/json")
                     .header("x-api-key", &api_key)
-                    .body(Body::from(
-                        r#"{"name":"Temp","space_type":"team"}"#,
-                    ))
+                    .body(Body::from(r#"{"name":"Temp","space_type":"team"}"#))
                     .expect("request"),
             )
             .await
@@ -1528,7 +1520,10 @@ mod tests {
         let bytes = resp.into_body().collect().await.expect("body").to_bytes();
         let err: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
         let msg = err["error"]["message"].as_str().unwrap_or("");
-        assert!(msg.contains("duplicate"), "expected duplicate error, got: {msg}");
+        assert!(
+            msg.contains("duplicate"),
+            "expected duplicate error, got: {msg}"
+        );
 
         // --- Third import (same content, force=true): should succeed ---
         let (ct, body) = build_multipart(

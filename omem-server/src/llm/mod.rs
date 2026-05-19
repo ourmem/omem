@@ -13,9 +13,7 @@ pub use service::{complete_json, strip_markdown_fences, LlmService};
 use crate::config::OmemConfig;
 use crate::domain::error::OmemError;
 
-pub async fn create_llm_service(
-    config: &OmemConfig,
-) -> Result<Box<dyn LlmService>, OmemError> {
+pub async fn create_llm_service(config: &OmemConfig) -> Result<Box<dyn LlmService>, OmemError> {
     match config.llm_provider.as_str() {
         "openai-compatible" => Ok(Box::new(OpenAICompatLlm::new(config)?)),
         #[cfg(feature = "bedrock")]
@@ -28,7 +26,9 @@ pub async fn create_llm_service(
             Ok(Box::new(BedrockLlm::new(model).await))
         }
         #[cfg(not(feature = "bedrock"))]
-        "bedrock" => Err(OmemError::Llm("bedrock feature not enabled (musl build)".to_string())),
+        "bedrock" => Err(OmemError::Llm(
+            "bedrock feature not enabled (musl build)".to_string(),
+        )),
         _ => Ok(Box::new(NoopLlm)),
     }
 }
@@ -43,7 +43,11 @@ mod tests {
         let svc = create_llm_service(&config).await.unwrap();
         let result = svc.complete_text("sys", "user").await;
         assert!(result.is_err());
-        assert!(result.err().unwrap().to_string().contains("LLM not configured"));
+        assert!(result
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("LLM not configured"));
     }
 
     #[tokio::test]

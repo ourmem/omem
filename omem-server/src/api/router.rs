@@ -11,10 +11,7 @@ use crate::api::server::AppState;
 pub fn build_router(state: Arc<AppState>) -> Router {
     let authed_routes = Router::new()
         .route("/v1/memories/search", get(handlers::search_memories))
-        .route(
-            "/v1/memories/batch-delete",
-            post(handlers::batch_delete),
-        )
+        .route("/v1/memories/batch-delete", post(handlers::batch_delete))
         .route("/v1/memories/all", delete(handlers::delete_all_memories))
         .route(
             "/v1/memories/{id}",
@@ -36,11 +33,20 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/v1/stats/sharing", get(handlers::get_sharing_stats))
         .route("/v1/stats/agents", get(handlers::get_agents_stats))
         .route("/v1/files", post(handlers::upload_file))
-        .route("/v1/imports", post(handlers::create_import).get(handlers::list_imports))
+        .route(
+            "/v1/imports",
+            post(handlers::create_import).get(handlers::list_imports),
+        )
         .route("/v1/imports/{id}", get(handlers::get_import))
-        .route("/v1/imports/{id}/intelligence", post(handlers::trigger_intelligence))
+        .route(
+            "/v1/imports/{id}/intelligence",
+            post(handlers::trigger_intelligence),
+        )
         .route("/v1/imports/{id}/rollback", post(handlers::rollback_import))
-        .route("/v1/imports/cross-reconcile", post(handlers::cross_reconcile))
+        .route(
+            "/v1/imports/cross-reconcile",
+            post(handlers::cross_reconcile),
+        )
         .route(
             "/v1/connectors/github/connect",
             post(handlers::github_connect),
@@ -60,30 +66,12 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             "/v1/spaces/{id}/members/{user_id}",
             delete(handlers::remove_member).put(handlers::update_member_role),
         )
-        .route(
-            "/v1/memories/{id}/share",
-            post(handlers::share_memory),
-        )
-        .route(
-            "/v1/memories/{id}/pull",
-            post(handlers::pull_memory),
-        )
-        .route(
-            "/v1/memories/{id}/unshare",
-            post(handlers::unshare_memory),
-        )
-        .route(
-            "/v1/memories/{id}/reshare",
-            post(handlers::reshare_memory),
-        )
-        .route(
-            "/v1/memories/batch-share",
-            post(handlers::batch_share),
-        )
-        .route(
-            "/v1/memories/share-all",
-            post(handlers::share_all),
-        )
+        .route("/v1/memories/{id}/share", post(handlers::share_memory))
+        .route("/v1/memories/{id}/pull", post(handlers::pull_memory))
+        .route("/v1/memories/{id}/unshare", post(handlers::unshare_memory))
+        .route("/v1/memories/{id}/reshare", post(handlers::reshare_memory))
+        .route("/v1/memories/batch-share", post(handlers::batch_share))
+        .route("/v1/memories/share-all", post(handlers::share_all))
         .route(
             "/v1/memories/{id}/share-to-user",
             post(handlers::share_to_user),
@@ -93,10 +81,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             post(handlers::share_all_to_user),
         )
         .route("/v1/org/setup", post(handlers::org_setup))
-        .route(
-            "/v1/org/{id}/publish",
-            post(handlers::org_publish),
-        )
+        .route("/v1/org/{id}/publish", post(handlers::org_publish))
         .route(
             "/v1/spaces/{id}/auto-share-rules",
             get(handlers::list_auto_share_rules).post(handlers::create_auto_share_rule),

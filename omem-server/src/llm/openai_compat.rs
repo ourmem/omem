@@ -133,9 +133,7 @@ impl LlmService for OpenAICompatLlm {
 
             if !status.is_success() {
                 let body = resp.text().await.unwrap_or_default();
-                return Err(OmemError::Llm(format!(
-                    "LLM API returned {status}: {body}"
-                )));
+                return Err(OmemError::Llm(format!("LLM API returned {status}: {body}")));
             }
 
             let body: ChatResponse = resp

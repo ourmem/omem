@@ -5,7 +5,7 @@ use axum::extract::{Extension, Query, State};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
-use crate::api::server::{AppState, personal_space_id};
+use crate::api::server::{personal_space_id, AppState};
 use crate::domain::error::OmemError;
 use crate::domain::memory::Memory;
 use crate::domain::space::SharingAction;
@@ -72,7 +72,10 @@ async fn collect_memories(
             let mut seen_ids = HashSet::new();
             let mut all = Vec::new();
 
-            let tenant_store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
+            let tenant_store = state
+                .store_manager
+                .get_store(&personal_space_id(&auth.tenant_id))
+                .await?;
             for mem in tenant_store.list_all_active().await? {
                 if seen_ids.insert(mem.id.clone()) {
                     all.push(mem);
@@ -149,10 +152,7 @@ pub async fn get_stats(
                 .entry(date.to_string())
                 .or_insert((0, HashMap::new()));
             entry.0 += 1;
-            *entry
-                .1
-                .entry(mem.memory_type.to_string())
-                .or_insert(0) += 1;
+            *entry.1.entry(mem.memory_type.to_string()).or_insert(0) += 1;
         }
     }
 
@@ -337,7 +337,10 @@ pub async fn get_decay(
         return Err(OmemError::Validation("memory_id is required".to_string()));
     }
 
-    let store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
+    let store = state
+        .store_manager
+        .get_store(&personal_space_id(&auth.tenant_id))
+        .await?;
     let memory = store
         .get_by_id(&params.memory_id)
         .await?
@@ -450,8 +453,9 @@ pub async fn get_relations(
                 .get(&rel.target_id)
                 .cloned()
                 .unwrap_or_default();
-            let is_cross_space =
-                !source_space.is_empty() && !target_space.is_empty() && source_space != &target_space;
+            let is_cross_space = !source_space.is_empty()
+                && !target_space.is_empty()
+                && source_space != &target_space;
             edges.push(serde_json::json!({
                 "source": mem.id,
                 "target": rel.target_id,
@@ -537,12 +541,8 @@ pub async fn get_spaces_stats(
         let mut shared_in_count = 0_usize;
 
         for mem in &memories {
-            *tier_distribution
-                .entry(mem.tier.to_string())
-                .or_insert(0) += 1;
-            *category_counts
-                .entry(mem.category.to_string())
-                .or_insert(0) += 1;
+            *tier_distribution.entry(mem.tier.to_string()).or_insert(0) += 1;
+            *category_counts.entry(mem.category.to_string()).or_insert(0) += 1;
 
             let ts = mem.created_at.as_str();
             if last_activity.is_none() || ts > last_activity.unwrap_or_default() {
@@ -749,9 +749,7 @@ pub async fn get_agents_stats(
                 mem.space_id.clone()
             };
             *by_space.entry(space_key).or_insert(0) += 1;
-            *category_counts
-                .entry(mem.category.to_string())
-                .or_insert(0) += 1;
+            *category_counts.entry(mem.category.to_string()).or_insert(0) += 1;
 
             let ts = mem.created_at.as_str();
             if last_active.is_none() || ts > last_active.unwrap_or_default() {
@@ -809,9 +807,7 @@ mod tests {
         let space_dir = TempDir::new().expect("temp dir");
         let tenant_dir = TempDir::new().expect("temp dir");
 
-        let store_manager = Arc::new(StoreManager::new(
-            store_dir.path().to_str().expect("path"),
-        ));
+        let store_manager = Arc::new(StoreManager::new(store_dir.path().to_str().expect("path")));
         let space_store = Arc::new(
             SpaceStore::new(space_dir.path().to_str().expect("path"))
                 .await
@@ -879,11 +875,27 @@ mod tests {
 
         let s1 = make_space("personal:user-1", "Personal", "user-1", SpaceType::Personal);
         let s2 = make_space("team:backend", "Backend", "user-1", SpaceType::Team);
-        state.space_store.create_space(&s1).await.expect("create s1");
-        state.space_store.create_space(&s2).await.expect("create s2");
+        state
+            .space_store
+            .create_space(&s1)
+            .await
+            .expect("create s1");
+        state
+            .space_store
+            .create_space(&s2)
+            .await
+            .expect("create s2");
 
-        let store1 = state.store_manager.get_store("personal:user-1").await.expect("store1");
-        let store2 = state.store_manager.get_store("team:backend").await.expect("store2");
+        let store1 = state
+            .store_manager
+            .get_store("personal:user-1")
+            .await
+            .expect("store1");
+        let store2 = state
+            .store_manager
+            .get_store("team:backend")
+            .await
+            .expect("store2");
 
         let m1 = make_memory("personal mem", "personal:user-1", "coder");
         let m2 = make_memory("team mem 1", "team:backend", "coder");
@@ -895,7 +907,10 @@ mod tests {
         let result = get_stats(
             State(state),
             Extension(auth),
-            Query(StatsQuery { days: 30, space: None }),
+            Query(StatsQuery {
+                days: 30,
+                space: None,
+            }),
         )
         .await
         .expect("get_stats");
@@ -920,11 +935,28 @@ mod tests {
         state.space_store.create_space(&s1).await.expect("s1");
         state.space_store.create_space(&s2).await.expect("s2");
 
-        let store1 = state.store_manager.get_store("personal:user-1").await.expect("store1");
-        let store2 = state.store_manager.get_store("team:backend").await.expect("store2");
-        store1.create(&make_memory("p1", "personal:user-1", "a1"), None).await.expect("m1");
-        store2.create(&make_memory("t1", "team:backend", "a1"), None).await.expect("m2");
-        store2.create(&make_memory("t2", "team:backend", "a2"), None).await.expect("m3");
+        let store1 = state
+            .store_manager
+            .get_store("personal:user-1")
+            .await
+            .expect("store1");
+        let store2 = state
+            .store_manager
+            .get_store("team:backend")
+            .await
+            .expect("store2");
+        store1
+            .create(&make_memory("p1", "personal:user-1", "a1"), None)
+            .await
+            .expect("m1");
+        store2
+            .create(&make_memory("t1", "team:backend", "a1"), None)
+            .await
+            .expect("m2");
+        store2
+            .create(&make_memory("t2", "team:backend", "a2"), None)
+            .await
+            .expect("m3");
 
         let result = get_stats(
             State(state),
@@ -953,9 +985,19 @@ mod tests {
         let s1 = make_space("personal:user-1", "Personal", "user-1", SpaceType::Personal);
         state.space_store.create_space(&s1).await.expect("s1");
 
-        let store1 = state.store_manager.get_store("personal:user-1").await.expect("store1");
-        store1.create(&make_memory("mem1", "personal:user-1", "coder"), None).await.expect("m1");
-        store1.create(&make_memory("mem2", "personal:user-1", "writer"), None).await.expect("m2");
+        let store1 = state
+            .store_manager
+            .get_store("personal:user-1")
+            .await
+            .expect("store1");
+        store1
+            .create(&make_memory("mem1", "personal:user-1", "coder"), None)
+            .await
+            .expect("m1");
+        store1
+            .create(&make_memory("mem2", "personal:user-1", "writer"), None)
+            .await
+            .expect("m2");
 
         let result = get_spaces_stats(State(state), Extension(auth))
             .await
@@ -1020,10 +1062,23 @@ mod tests {
         let s1 = make_space("personal:user-1", "Personal", "user-1", SpaceType::Personal);
         state.space_store.create_space(&s1).await.expect("s1");
 
-        let store = state.store_manager.get_store("personal:user-1").await.expect("store");
-        store.create(&make_memory("m1", "personal:user-1", "coder"), None).await.expect("m1");
-        store.create(&make_memory("m2", "personal:user-1", "coder"), None).await.expect("m2");
-        store.create(&make_memory("m3", "personal:user-1", "writer"), None).await.expect("m3");
+        let store = state
+            .store_manager
+            .get_store("personal:user-1")
+            .await
+            .expect("store");
+        store
+            .create(&make_memory("m1", "personal:user-1", "coder"), None)
+            .await
+            .expect("m1");
+        store
+            .create(&make_memory("m2", "personal:user-1", "coder"), None)
+            .await
+            .expect("m2");
+        store
+            .create(&make_memory("m3", "personal:user-1", "writer"), None)
+            .await
+            .expect("m3");
 
         let result = get_agents_stats(State(state), Extension(auth))
             .await
@@ -1051,8 +1106,16 @@ mod tests {
         state.space_store.create_space(&s1).await.expect("s1");
         state.space_store.create_space(&s2).await.expect("s2");
 
-        let store1 = state.store_manager.get_store("personal:user-1").await.expect("store1");
-        let store2 = state.store_manager.get_store("team:backend").await.expect("store2");
+        let store1 = state
+            .store_manager
+            .get_store("personal:user-1")
+            .await
+            .expect("store1");
+        let store2 = state
+            .store_manager
+            .get_store("team:backend")
+            .await
+            .expect("store2");
 
         let mut m1 = make_memory("m1", "personal:user-1", "coder");
         m1.tags = vec!["rust".to_string(), "personal-only".to_string()];
@@ -1094,7 +1157,11 @@ mod tests {
         let s1 = make_space("personal:user-1", "Personal", "user-1", SpaceType::Personal);
         state.space_store.create_space(&s1).await.expect("s1");
 
-        let store = state.store_manager.get_store("personal:user-1").await.expect("store");
+        let store = state
+            .store_manager
+            .get_store("personal:user-1")
+            .await
+            .expect("store");
 
         let m1 = make_memory("original", "personal:user-1", "coder");
         let original_id = m1.id.clone();

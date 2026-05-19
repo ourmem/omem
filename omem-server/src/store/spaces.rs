@@ -172,7 +172,10 @@ impl SpaceStore {
             vec![
                 Arc::new(StringArray::from(vec![space.id.as_str()])),
                 Arc::new(StringArray::from(vec![data_json.as_str()])),
-                Arc::new(StringArray::from(vec![space.space_type.to_string().as_str()])),
+                Arc::new(StringArray::from(vec![space
+                    .space_type
+                    .to_string()
+                    .as_str()])),
                 Arc::new(StringArray::from(vec![space.owner_id.as_str()])),
                 Arc::new(StringArray::from(vec![space.created_at.as_str()])),
             ],
@@ -229,9 +232,7 @@ impl SpaceStore {
         for batch in &batches {
             for i in 0..batch.num_rows() {
                 let space = Self::row_to_space(batch, i)?;
-                if space.owner_id == user_id
-                    || space.members.iter().any(|m| m.user_id == user_id)
-                {
+                if space.owner_id == user_id || space.members.iter().any(|m| m.user_id == user_id) {
                     spaces.push(space);
                 }
             }
@@ -370,7 +371,9 @@ impl SpaceStore {
         table
             .delete(&format!("id = '{}'", escape_sql(&task.id)))
             .await
-            .map_err(|e| OmemError::Storage(format!("delete for import task update failed: {e}")))?;
+            .map_err(|e| {
+                OmemError::Storage(format!("delete for import task update failed: {e}"))
+            })?;
 
         self.create_import_task(task).await
     }
@@ -553,18 +556,15 @@ mod tests {
         assert_eq!(fetched.space_type, SpaceType::Team);
         assert_eq!(fetched.members.len(), 1);
 
-        let spaces = store
-            .list_spaces_for_user("user-001")
-            .await
-            .expect("list");
+        let spaces = store.list_spaces_for_user("user-001").await.expect("list");
         assert_eq!(spaces.len(), 1);
 
-        store
-            .delete_space("team:backend")
-            .await
-            .expect("delete");
+        store.delete_space("team:backend").await.expect("delete");
 
-        let deleted = store.get_space("team:backend").await.expect("get after delete");
+        let deleted = store
+            .get_space("team:backend")
+            .await
+            .expect("get after delete");
         assert!(deleted.is_none());
     }
 
@@ -579,7 +579,11 @@ mod tests {
         space.updated_at = "2025-06-01T00:00:00Z".to_string();
         store.update_space(&space).await.expect("update");
 
-        let fetched = store.get_space("team:fe").await.expect("get").expect("exists");
+        let fetched = store
+            .get_space("team:fe")
+            .await
+            .expect("get")
+            .expect("exists");
         assert_eq!(fetched.name, "Frontend Team");
     }
 
@@ -595,7 +599,10 @@ mod tests {
         store.create_space(&s2).await.expect("create s2");
         store.create_space(&s3).await.expect("create s3");
 
-        let alice_spaces = store.list_spaces_for_user("alice").await.expect("list alice");
+        let alice_spaces = store
+            .list_spaces_for_user("alice")
+            .await
+            .expect("list alice");
         assert_eq!(alice_spaces.len(), 2);
 
         let bob_spaces = store.list_spaces_for_user("bob").await.expect("list bob");
@@ -647,7 +654,10 @@ mod tests {
     #[tokio::test]
     async fn test_init_tables_idempotent() {
         let (store, _dir) = setup().await;
-        store.init_tables().await.expect("second init should succeed");
+        store
+            .init_tables()
+            .await
+            .expect("second init should succeed");
     }
 
     #[tokio::test]
@@ -672,16 +682,25 @@ mod tests {
             created_at: "2025-01-01T00:00:00Z".to_string(),
             updated_at: "2025-01-01T00:00:00Z".to_string(),
         };
-        store.create_space(&alice_personal).await.expect("create alice personal");
+        store
+            .create_space(&alice_personal)
+            .await
+            .expect("create alice personal");
 
-        let alice_spaces = store.list_spaces_for_user("alice").await.expect("list alice");
+        let alice_spaces = store
+            .list_spaces_for_user("alice")
+            .await
+            .expect("list alice");
         assert_eq!(alice_spaces.len(), 2);
 
         let bob_spaces = store.list_spaces_for_user("bob").await.expect("list bob");
         assert_eq!(bob_spaces.len(), 1);
         assert_eq!(bob_spaces[0].id, "team:backend");
 
-        let charlie_spaces = store.list_spaces_for_user("charlie").await.expect("list charlie");
+        let charlie_spaces = store
+            .list_spaces_for_user("charlie")
+            .await
+            .expect("list charlie");
         assert_eq!(charlie_spaces.len(), 0);
     }
 }

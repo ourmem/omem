@@ -12,9 +12,10 @@ impl IntoResponse for OmemError {
             OmemError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "unauthorized"),
             OmemError::Validation(_) => (StatusCode::BAD_REQUEST, "validation_error"),
             OmemError::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "rate_limited"),
-            OmemError::Storage(_) | OmemError::Embedding(_) | OmemError::Llm(_) | OmemError::Internal(_) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "internal_error")
-            }
+            OmemError::Storage(_)
+            | OmemError::Embedding(_)
+            | OmemError::Llm(_)
+            | OmemError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal_error"),
         };
 
         let message = self.to_string();
@@ -43,13 +44,8 @@ mod tests {
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
         let body = response.into_body();
-        let bytes = body
-            .collect()
-            .await
-            .expect("collect body")
-            .to_bytes();
-        let json: serde_json::Value =
-            serde_json::from_slice(&bytes).expect("parse json");
+        let bytes = body.collect().await.expect("collect body").to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).expect("parse json");
         assert_eq!(json["error"]["code"], "not_found");
     }
 

@@ -140,10 +140,7 @@ impl Reconciler {
                     updated.l0_abstract = merged_content.to_string();
                     updated.updated_at = chrono::Utc::now().to_rfc3339();
 
-                    let embeddings = self
-                        .embed
-                        .embed(&[merged_content.to_string()])
-                        .await?;
+                    let embeddings = self.embed.embed(&[merged_content.to_string()]).await?;
                     let vector = embeddings.first().map(|v| v.as_slice());
 
                     self.store.update(&updated, vector).await?;
@@ -151,16 +148,45 @@ impl Reconciler {
                 }
                 "SKIP" => {}
                 "SUPERSEDE" => {
-                    self.handle_supersede(fact, &decision.match_index, &int_to_uuid, tenant_id, &mut created_memories).await?;
+                    self.handle_supersede(
+                        fact,
+                        &decision.match_index,
+                        &int_to_uuid,
+                        tenant_id,
+                        &mut created_memories,
+                    )
+                    .await?;
                 }
                 "SUPPORT" => {
-                    self.handle_support(fact, &decision.match_index, &decision.context_label, &int_to_uuid, &mut created_memories).await?;
+                    self.handle_support(
+                        fact,
+                        &decision.match_index,
+                        &decision.context_label,
+                        &int_to_uuid,
+                        &mut created_memories,
+                    )
+                    .await?;
                 }
                 "CONTEXTUALIZE" => {
-                    self.handle_contextualize(fact, &decision.match_index, &decision.context_label, &int_to_uuid, tenant_id, &mut created_memories).await?;
+                    self.handle_contextualize(
+                        fact,
+                        &decision.match_index,
+                        &decision.context_label,
+                        &int_to_uuid,
+                        tenant_id,
+                        &mut created_memories,
+                    )
+                    .await?;
                 }
                 "CONTRADICT" => {
-                    self.handle_contradict(fact, &decision.match_index, &int_to_uuid, tenant_id, &mut created_memories).await?;
+                    self.handle_contradict(
+                        fact,
+                        &decision.match_index,
+                        &int_to_uuid,
+                        tenant_id,
+                        &mut created_memories,
+                    )
+                    .await?;
                 }
                 other => {
                     warn!(action = %other, "unknown reconciliation action — treating as CREATE");
@@ -192,9 +218,7 @@ impl Reconciler {
             if mem.category != Category::Preferences {
                 continue;
             }
-            if let Some(existing_slot) =
-                preference_slots::infer_preference_slot(&mem.l0_abstract)
-            {
+            if let Some(existing_slot) = preference_slots::infer_preference_slot(&mem.l0_abstract) {
                 if preference_slots::is_same_brand_different_item(&candidate_slot, &existing_slot) {
                     return Ok(true);
                 }
@@ -212,12 +236,11 @@ impl Reconciler {
         tenant_id: &str,
         created_memories: &mut Vec<Memory>,
     ) -> Result<(), OmemError> {
-        let match_idx = match_index.ok_or_else(|| {
-            OmemError::Llm("SUPERSEDE decision missing match_index".to_string())
-        })?;
-        let real_id = int_to_uuid.get(&match_idx).ok_or_else(|| {
-            OmemError::Llm(format!("invalid match_index: {match_idx}"))
-        })?;
+        let match_idx = match_index
+            .ok_or_else(|| OmemError::Llm("SUPERSEDE decision missing match_index".to_string()))?;
+        let real_id = int_to_uuid
+            .get(&match_idx)
+            .ok_or_else(|| OmemError::Llm(format!("invalid match_index: {match_idx}")))?;
 
         let old = self
             .store
@@ -255,12 +278,11 @@ impl Reconciler {
         int_to_uuid: &HashMap<usize, String>,
         created_memories: &mut Vec<Memory>,
     ) -> Result<(), OmemError> {
-        let match_idx = match_index.ok_or_else(|| {
-            OmemError::Llm("SUPPORT decision missing match_index".to_string())
-        })?;
-        let real_id = int_to_uuid.get(&match_idx).ok_or_else(|| {
-            OmemError::Llm(format!("invalid match_index: {match_idx}"))
-        })?;
+        let match_idx = match_index
+            .ok_or_else(|| OmemError::Llm("SUPPORT decision missing match_index".to_string()))?;
+        let real_id = int_to_uuid
+            .get(&match_idx)
+            .ok_or_else(|| OmemError::Llm(format!("invalid match_index: {match_idx}")))?;
 
         let mut target = self
             .store
@@ -293,9 +315,9 @@ impl Reconciler {
         let match_idx = match_index.ok_or_else(|| {
             OmemError::Llm("CONTEXTUALIZE decision missing match_index".to_string())
         })?;
-        let real_id = int_to_uuid.get(&match_idx).ok_or_else(|| {
-            OmemError::Llm(format!("invalid match_index: {match_idx}"))
-        })?;
+        let real_id = int_to_uuid
+            .get(&match_idx)
+            .ok_or_else(|| OmemError::Llm(format!("invalid match_index: {match_idx}")))?;
 
         let mut new_mem = self.create_fact_memory(fact, tenant_id).await?;
         new_mem.relations.push(MemoryRelation {
@@ -321,12 +343,11 @@ impl Reconciler {
         tenant_id: &str,
         created_memories: &mut Vec<Memory>,
     ) -> Result<(), OmemError> {
-        let match_idx = match_index.ok_or_else(|| {
-            OmemError::Llm("CONTRADICT decision missing match_index".to_string())
-        })?;
-        let real_id = int_to_uuid.get(&match_idx).ok_or_else(|| {
-            OmemError::Llm(format!("invalid match_index: {match_idx}"))
-        })?;
+        let match_idx = match_index
+            .ok_or_else(|| OmemError::Llm("CONTRADICT decision missing match_index".to_string()))?;
+        let real_id = int_to_uuid
+            .get(&match_idx)
+            .ok_or_else(|| OmemError::Llm(format!("invalid match_index: {match_idx}")))?;
 
         let old = self
             .store
@@ -394,10 +415,7 @@ impl Reconciler {
         }
     }
 
-    async fn gather_existing(
-        &self,
-        facts: &[ExtractedFact],
-    ) -> (Vec<Memory>, bool) {
+    async fn gather_existing(&self, facts: &[ExtractedFact]) -> (Vec<Memory>, bool) {
         let mut seen_ids: HashMap<String, Memory> = HashMap::new();
         let mut any_search_succeeded = false;
         let mut total_count = 0;
@@ -418,7 +436,13 @@ impl Reconciler {
                 if let Some(query_vec) = vectors.first() {
                     match self
                         .store
-                        .vector_search(query_vec, self.max_per_fact, self.min_similarity, None, None)
+                        .vector_search(
+                            query_vec,
+                            self.max_per_fact,
+                            self.min_similarity,
+                            None,
+                            None,
+                        )
                         .await
                     {
                         Ok(results) => {
@@ -442,7 +466,9 @@ impl Reconciler {
                 warn!("embedding failed during gather");
             }
 
-            let fts_query = fact.source_text.as_deref()
+            let fts_query = fact
+                .source_text
+                .as_deref()
                 .map(|s| s.chars().take(200).collect::<String>())
                 .unwrap_or_else(|| fact.l0_abstract.clone());
 
@@ -491,10 +517,7 @@ impl Reconciler {
         fact: &ExtractedFact,
         tenant_id: &str,
     ) -> Result<Memory, OmemError> {
-        let category: Category = fact
-            .category
-            .parse()
-            .unwrap_or(Category::Profile);
+        let category: Category = fact.category.parse().unwrap_or(Category::Profile);
 
         let source = fact.source_text.as_deref().unwrap_or(&fact.l0_abstract);
 
@@ -504,7 +527,10 @@ impl Reconciler {
         mem.l2_content = fact.l2_content.clone();
         mem.tags = fact.tags.clone();
 
-        let embeddings = self.embed.embed(std::slice::from_ref(&source.to_string())).await?;
+        let embeddings = self
+            .embed
+            .embed(std::slice::from_ref(&source.to_string()))
+            .await?;
         let vector = embeddings.first().map(|v| v.as_slice());
 
         self.store.create(&mem, vector).await?;
@@ -624,7 +650,10 @@ mod tests {
             make_fact("User works at Stripe", "profile"),
         ];
 
-        let result = reconciler.reconcile(&facts, "t-001").await.expect("reconcile");
+        let result = reconciler
+            .reconcile(&facts, "t-001")
+            .await
+            .expect("reconcile");
 
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].l0_abstract, "User prefers Rust");
@@ -644,7 +673,10 @@ mod tests {
             MemoryType::Insight,
             "t-001",
         );
-        store.create(&existing, Some(&vec![0.0; 1024])).await.expect("create");
+        store
+            .create(&existing, Some(&vec![0.0; 1024]))
+            .await
+            .expect("create");
 
         let skip_response = r#"{"decisions":[{"action":"SKIP","fact_index":0,"match_index":0,"reason":"duplicate"}]}"#;
         let llm = Arc::new(MockLlm::new(skip_response));
@@ -652,7 +684,10 @@ mod tests {
         let reconciler = Reconciler::new(llm, store.clone(), embed);
         let facts = vec![make_fact("User prefers Rust", "preferences")];
 
-        let result = reconciler.reconcile(&facts, "t-001").await.expect("reconcile");
+        let result = reconciler
+            .reconcile(&facts, "t-001")
+            .await
+            .expect("reconcile");
         assert!(result.is_empty());
     }
 
@@ -668,20 +703,39 @@ mod tests {
             "t-001",
         );
         existing.l0_abstract = "User prefers Rust".to_string();
-        store.create(&existing, Some(&vec![0.0; 1024])).await.expect("create");
+        store
+            .create(&existing, Some(&vec![0.0; 1024]))
+            .await
+            .expect("create");
 
         let merge_response = r#"{"decisions":[{"action":"MERGE","fact_index":0,"match_index":0,"merged_content":"User prefers Rust for its safety and performance","reason":"adds detail"}]}"#;
         let llm = Arc::new(MockLlm::new(merge_response));
 
         let reconciler = Reconciler::new(llm, store.clone(), embed);
-        let facts = vec![make_fact("User likes Rust for safety and performance", "preferences")];
+        let facts = vec![make_fact(
+            "User likes Rust for safety and performance",
+            "preferences",
+        )];
 
-        let result = reconciler.reconcile(&facts, "t-001").await.expect("reconcile");
+        let result = reconciler
+            .reconcile(&facts, "t-001")
+            .await
+            .expect("reconcile");
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].content, "User prefers Rust for its safety and performance");
+        assert_eq!(
+            result[0].content,
+            "User prefers Rust for its safety and performance"
+        );
 
-        let updated = store.get_by_id(&existing.id).await.expect("get").expect("found");
-        assert_eq!(updated.content, "User prefers Rust for its safety and performance");
+        let updated = store
+            .get_by_id(&existing.id)
+            .await
+            .expect("get")
+            .expect("found");
+        assert_eq!(
+            updated.content,
+            "User prefers Rust for its safety and performance"
+        );
     }
 
     #[tokio::test]
@@ -696,7 +750,10 @@ mod tests {
             "t-001",
         );
         existing.l0_abstract = "User works at Google".to_string();
-        store.create(&existing, Some(&vec![0.0; 1024])).await.expect("create");
+        store
+            .create(&existing, Some(&vec![0.0; 1024]))
+            .await
+            .expect("create");
 
         let supersede_response = r#"{"decisions":[{"action":"SUPERSEDE","fact_index":0,"match_index":0,"reason":"user changed jobs"}]}"#;
         let llm = Arc::new(MockLlm::new(supersede_response));
@@ -704,11 +761,18 @@ mod tests {
         let reconciler = Reconciler::new(llm, store.clone(), embed);
         let facts = vec![make_fact("User now works at Stripe", "profile")];
 
-        let result = reconciler.reconcile(&facts, "t-001").await.expect("reconcile");
+        let result = reconciler
+            .reconcile(&facts, "t-001")
+            .await
+            .expect("reconcile");
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].l0_abstract, "User now works at Stripe");
 
-        let old = store.get_by_id(&existing.id).await.expect("get").expect("found");
+        let old = store
+            .get_by_id(&existing.id)
+            .await
+            .expect("get")
+            .expect("found");
         assert!(old.invalidated_at.is_some());
         assert_eq!(old.superseded_by.as_deref(), Some(result[0].id.as_str()));
     }
@@ -725,7 +789,10 @@ mod tests {
             "t-001",
         );
         pinned.l0_abstract = "Important: always use HTTPS".to_string();
-        store.create(&pinned, Some(&vec![0.0; 1024])).await.expect("create");
+        store
+            .create(&pinned, Some(&vec![0.0; 1024]))
+            .await
+            .expect("create");
 
         let merge_response = r#"{"decisions":[{"action":"MERGE","fact_index":0,"match_index":0,"merged_content":"merged text","reason":"refine"}]}"#;
         let llm = Arc::new(MockLlm::new(merge_response));
@@ -733,13 +800,20 @@ mod tests {
         let reconciler = Reconciler::new(llm, store.clone(), embed);
         let facts = vec![make_fact("Use HTTPS everywhere", "preferences")];
 
-        let result = reconciler.reconcile(&facts, "t-001").await.expect("reconcile");
+        let result = reconciler
+            .reconcile(&facts, "t-001")
+            .await
+            .expect("reconcile");
 
         assert_eq!(result.len(), 1);
         assert_ne!(result[0].id, pinned.id);
         assert_eq!(result[0].memory_type, MemoryType::Insight);
 
-        let original = store.get_by_id(&pinned.id).await.expect("get").expect("found");
+        let original = store
+            .get_by_id(&pinned.id)
+            .await
+            .expect("get")
+            .expect("found");
         assert_eq!(original.content, "Important: always use HTTPS");
         assert_eq!(original.memory_type, MemoryType::Pinned);
     }
@@ -750,25 +824,49 @@ mod tests {
 
         let mut m1 = Memory::new("Fact A", Category::Profile, MemoryType::Insight, "t-001");
         m1.l0_abstract = "Fact A".to_string();
-        let mut m2 = Memory::new("Fact B", Category::Preferences, MemoryType::Insight, "t-001");
+        let mut m2 = Memory::new(
+            "Fact B",
+            Category::Preferences,
+            MemoryType::Insight,
+            "t-001",
+        );
         m2.l0_abstract = "Fact B".to_string();
 
-        store.create(&m1, Some(&vec![0.0; 1024])).await.expect("create");
-        store.create(&m2, Some(&vec![0.0; 1024])).await.expect("create");
+        store
+            .create(&m1, Some(&vec![0.0; 1024]))
+            .await
+            .expect("create");
+        store
+            .create(&m2, Some(&vec![0.0; 1024]))
+            .await
+            .expect("create");
 
-        let skip_response = r#"{"decisions":[{"action":"SKIP","fact_index":0,"match_index":0,"reason":"dup"}]}"#;
+        let skip_response =
+            r#"{"decisions":[{"action":"SKIP","fact_index":0,"match_index":0,"reason":"dup"}]}"#;
         let llm = Arc::new(CapturingLlm::new(skip_response));
         let embed = Arc::new(MockEmbed);
 
         let reconciler = Reconciler::new(llm.clone(), store.clone(), embed);
         let facts = vec![make_fact("Fact A", "profile")];
 
-        let _ = reconciler.reconcile(&facts, "t-001").await.expect("reconcile");
+        let _ = reconciler
+            .reconcile(&facts, "t-001")
+            .await
+            .expect("reconcile");
 
         let captured = llm.captured_user().expect("captured");
-        assert!(!captured.contains(&m1.id), "prompt should not contain raw UUID");
-        assert!(!captured.contains(&m2.id), "prompt should not contain raw UUID");
-        assert!(captured.contains("[0]"), "prompt should contain integer ID [0]");
+        assert!(
+            !captured.contains(&m1.id),
+            "prompt should not contain raw UUID"
+        );
+        assert!(
+            !captured.contains(&m2.id),
+            "prompt should not contain raw UUID"
+        );
+        assert!(
+            captured.contains("[0]"),
+            "prompt should contain integer ID [0]"
+        );
     }
 
     #[tokio::test]
@@ -793,7 +891,10 @@ mod tests {
         let llm = Arc::new(MockLlm::new(support_response));
 
         let reconciler = Reconciler::new(llm, store.clone(), embed);
-        let facts = vec![make_fact("User drinks coffee at the office daily", "preferences")];
+        let facts = vec![make_fact(
+            "User drinks coffee at the office daily",
+            "preferences",
+        )];
 
         let result = reconciler
             .reconcile(&facts, "t-001")
@@ -809,10 +910,7 @@ mod tests {
         assert!((updated.confidence - 0.6).abs() < f32::EPSILON);
         assert_eq!(updated.relations.len(), 1);
         assert_eq!(updated.relations[0].relation_type, RelationType::Supports);
-        assert_eq!(
-            updated.relations[0].context_label.as_deref(),
-            Some("work")
-        );
+        assert_eq!(updated.relations[0].context_label.as_deref(), Some("work"));
     }
 
     #[tokio::test]
@@ -877,17 +975,17 @@ mod tests {
         let llm = Arc::new(MockLlm::new(contradict_response));
 
         let reconciler = Reconciler::new(llm, store.clone(), embed);
-        let facts = vec![make_fact("User now prefers Rust over Python", "preferences")];
+        let facts = vec![make_fact(
+            "User now prefers Rust over Python",
+            "preferences",
+        )];
 
         let result = reconciler
             .reconcile(&facts, "t-001")
             .await
             .expect("reconcile");
         assert_eq!(result.len(), 1);
-        assert_eq!(
-            result[0].l0_abstract,
-            "User now prefers Rust over Python"
-        );
+        assert_eq!(result[0].l0_abstract, "User now prefers Rust over Python");
 
         let old = store
             .get_by_id(&existing.id)
@@ -919,10 +1017,7 @@ mod tests {
         let llm = Arc::new(MockLlm::new(contradict_response));
 
         let reconciler = Reconciler::new(llm, store.clone(), embed);
-        let facts = vec![make_fact(
-            "Deployment had critical failures",
-            "patterns",
-        )];
+        let facts = vec![make_fact("Deployment had critical failures", "patterns")];
 
         let result = reconciler
             .reconcile(&facts, "t-001")
@@ -1000,7 +1095,10 @@ mod tests {
         let llm = Arc::new(MockLlm::new(merge_response));
 
         let reconciler = Reconciler::new(llm, store.clone(), embed);
-        let facts = vec![make_fact("User is now a senior engineer at Stripe", "profile")];
+        let facts = vec![make_fact(
+            "User is now a senior engineer at Stripe",
+            "profile",
+        )];
 
         let result = reconciler
             .reconcile(&facts, "t-001")

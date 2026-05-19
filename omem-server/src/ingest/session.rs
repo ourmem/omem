@@ -53,10 +53,9 @@ pub struct SessionStore {
 
 impl SessionStore {
     pub async fn new(uri: &str) -> Result<Self, OmemError> {
-        let db = lancedb::connect(uri)
-            .execute()
-            .await
-            .map_err(|e| OmemError::Storage(format!("failed to connect to LanceDB for sessions: {e}")))?;
+        let db = lancedb::connect(uri).execute().await.map_err(|e| {
+            OmemError::Storage(format!("failed to connect to LanceDB for sessions: {e}"))
+        })?;
         Ok(Self { db })
     }
 
@@ -289,8 +288,7 @@ impl SessionStore {
                 .ok_or_else(|| OmemError::Storage("missing created_at column".to_string()))?;
 
             for i in 0..batch.num_rows() {
-                let tags: Vec<String> =
-                    serde_json::from_str(tags_col.value(i)).unwrap_or_default();
+                let tags: Vec<String> = serde_json::from_str(tags_col.value(i)).unwrap_or_default();
                 messages.push(SessionMessage {
                     id: ids.value(i).to_string(),
                     session_id: session_ids.value(i).to_string(),
@@ -465,12 +463,20 @@ mod tests {
     async fn different_sessions_isolated() {
         let (store, _dir) = setup().await;
 
-        let msgs_a = vec![
-            SessionMessage::new("sess-a", "agent-1", "user", "hello", vec![]),
-        ];
-        let msgs_b = vec![
-            SessionMessage::new("sess-b", "agent-1", "user", "hello", vec![]),
-        ];
+        let msgs_a = vec![SessionMessage::new(
+            "sess-a",
+            "agent-1",
+            "user",
+            "hello",
+            vec![],
+        )];
+        let msgs_b = vec![SessionMessage::new(
+            "sess-b",
+            "agent-1",
+            "user",
+            "hello",
+            vec![],
+        )];
 
         store.bulk_create(&msgs_a).await.expect("insert a");
         store.bulk_create(&msgs_b).await.expect("insert b");
@@ -500,10 +506,7 @@ mod tests {
     #[tokio::test]
     async fn find_by_session_id_empty_when_none() {
         let (store, _dir) = setup().await;
-        let found = store
-            .find_by_session_id("nonexistent")
-            .await
-            .expect("find");
+        let found = store.find_by_session_id("nonexistent").await.expect("find");
         assert!(found.is_empty());
     }
 
@@ -515,7 +518,10 @@ mod tests {
         store.bulk_create(&[msg]).await.expect("insert");
 
         assert!(store.exists_by_hash(&hash).await.expect("exists"));
-        assert!(!store.exists_by_hash("nonexistent_hash").await.expect("not exists"));
+        assert!(!store
+            .exists_by_hash("nonexistent_hash")
+            .await
+            .expect("not exists"));
     }
 
     /// Two tenants import the same content → both succeed (per-tenant path isolation).
@@ -564,17 +570,29 @@ mod tests {
         };
 
         // Tenant A imports → succeeds
-        assert!(!store_a.exists_by_hash(&content_hash).await.expect("check a"));
+        assert!(!store_a
+            .exists_by_hash(&content_hash)
+            .await
+            .expect("check a"));
         store_a.bulk_create(&[msg_a]).await.expect("insert a");
-        assert!(store_a.exists_by_hash(&content_hash).await.expect("verify a"));
+        assert!(store_a
+            .exists_by_hash(&content_hash)
+            .await
+            .expect("verify a"));
 
         // Tenant B imports same content → should ALSO succeed (isolated store)
         assert!(
-            !store_b.exists_by_hash(&content_hash).await.expect("check b"),
+            !store_b
+                .exists_by_hash(&content_hash)
+                .await
+                .expect("check b"),
             "BUG: tenant B blocked by tenant A's import — stores not isolated"
         );
         store_b.bulk_create(&[msg_b]).await.expect("insert b");
-        assert!(store_b.exists_by_hash(&content_hash).await.expect("verify b"));
+        assert!(store_b
+            .exists_by_hash(&content_hash)
+            .await
+            .expect("verify b"));
     }
 
     /// Same tenant imports same content twice → second rejected (dedup still works).
@@ -639,19 +657,34 @@ mod tests {
         store_a.bulk_create(&[msg_a]).await.expect("insert a");
         store_b.bulk_create(&[msg_b]).await.expect("insert b");
 
-        assert_eq!(store_a.count_by_session("sess-a").await.expect("count a"), 1);
-        assert_eq!(store_b.count_by_session("sess-b").await.expect("count b"), 1);
+        assert_eq!(
+            store_a.count_by_session("sess-a").await.expect("count a"),
+            1
+        );
+        assert_eq!(
+            store_b.count_by_session("sess-b").await.expect("count b"),
+            1
+        );
 
         // Tenant A deletes ALL their sessions
         let deleted = store_a.delete_all().await.expect("delete all a");
         assert_eq!(deleted, 1);
 
         // Tenant A is empty
-        assert_eq!(store_a.count_by_session("sess-a").await.expect("count a after"), 0);
+        assert_eq!(
+            store_a
+                .count_by_session("sess-a")
+                .await
+                .expect("count a after"),
+            0
+        );
 
         // Tenant B MUST still be intact
         assert_eq!(
-            store_b.count_by_session("sess-b").await.expect("count b after"),
+            store_b
+                .count_by_session("sess-b")
+                .await
+                .expect("count b after"),
             1,
             "BUG: tenant A's delete_all destroyed tenant B's sessions"
         );
@@ -661,9 +694,13 @@ mod tests {
     async fn partial_dedup_mixed_new_and_existing() {
         let (store, _dir) = setup().await;
 
-        let first = vec![
-            SessionMessage::new("sess-1", "agent-1", "user", "existing msg", vec![]),
-        ];
+        let first = vec![SessionMessage::new(
+            "sess-1",
+            "agent-1",
+            "user",
+            "existing msg",
+            vec![],
+        )];
         store.bulk_create(&first).await.expect("first insert");
 
         let mixed = vec![

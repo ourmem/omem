@@ -52,10 +52,7 @@ impl AutoForgetter {
         Ok(deleted_count)
     }
 
-    pub async fn archive_superseded(
-        &self,
-        max_age_days: u32,
-    ) -> Result<usize, OmemError> {
+    pub async fn archive_superseded(&self, max_age_days: u32) -> Result<usize, OmemError> {
         let memories = self.store.list(10000, 0).await?;
         let now = chrono::Utc::now();
         let max_age = chrono::TimeDelta::try_days(max_age_days as i64)
@@ -179,12 +176,12 @@ mod tests {
         store.create(&m_permanent, Some(&v)).await.expect("create");
 
         let forgetter = AutoForgetter::new(store.clone());
-        let count = forgetter
-            .cleanup_expired()
-            .await
-            .expect("cleanup");
+        let count = forgetter.cleanup_expired().await.expect("cleanup");
 
-        assert_eq!(count, 1, "only the expired 'today' memory (5 days old) should be deleted");
+        assert_eq!(
+            count, 1,
+            "only the expired 'today' memory (5 days old) should be deleted"
+        );
 
         let remaining = store.list(100, 0).await.expect("list");
         assert_eq!(remaining.len(), 2);
@@ -219,12 +216,12 @@ mod tests {
         store.create(&m_active, Some(&v)).await.expect("create");
 
         let forgetter = AutoForgetter::new(store.clone());
-        let count = forgetter
-            .archive_superseded(30)
-            .await
-            .expect("archive");
+        let count = forgetter.archive_superseded(30).await.expect("archive");
 
-        assert_eq!(count, 1, "only the old superseded memory should be archived");
+        assert_eq!(
+            count, 1,
+            "only the old superseded memory should be archived"
+        );
 
         let mem = store
             .get_by_id(&m_old_superseded.id)

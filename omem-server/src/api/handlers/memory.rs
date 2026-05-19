@@ -6,7 +6,7 @@ use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
-use crate::api::server::{AppState, personal_space_id};
+use crate::api::server::{personal_space_id, AppState};
 use crate::domain::category::Category;
 use crate::domain::error::OmemError;
 use crate::domain::memory::Memory;
@@ -146,7 +146,10 @@ pub async fn create_memory(
     Extension(auth): Extension<AuthInfo>,
     Json(body): Json<CreateMemoryBody>,
 ) -> Result<impl IntoResponse, OmemError> {
-    let store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
+    let store = state
+        .store_manager
+        .get_store(&personal_space_id(&auth.tenant_id))
+        .await?;
 
     if let Some(messages) = body.messages {
         if messages.is_empty() {
@@ -158,7 +161,11 @@ pub async fn create_memory(
             _ => IngestMode::Smart,
         };
 
-        let session_uri = format!("{}/{}", state.config.store_uri(), personal_space_id(&auth.tenant_id));
+        let session_uri = format!(
+            "{}/{}",
+            state.config.store_uri(),
+            personal_space_id(&auth.tenant_id)
+        );
 
         let request = IngestRequest {
             messages: messages
@@ -182,20 +189,16 @@ pub async fn create_memory(
         );
         session_store.init_table().await?;
 
-        let ingest_pipeline = IngestPipeline::new(
-            store,
-            session_store,
-            state.embed.clone(),
-            state.llm.clone(),
-        );
+        let ingest_pipeline =
+            IngestPipeline::new(store, session_store, state.embed.clone(), state.llm.clone());
 
         let response = ingest_pipeline.ingest(request).await?;
         return Ok((StatusCode::ACCEPTED, Json(serde_json::json!(response))).into_response());
     }
 
-    let content = body
-        .content
-        .ok_or_else(|| OmemError::Validation("either 'messages' or 'content' required".to_string()))?;
+    let content = body.content.ok_or_else(|| {
+        OmemError::Validation("either 'messages' or 'content' required".to_string())
+    })?;
 
     if content.is_empty() {
         return Err(OmemError::Validation("content cannot be empty".to_string()));
@@ -218,9 +221,7 @@ pub async fn create_memory(
         .map_err(|e| OmemError::Embedding(format!("failed to embed content: {e}")))?;
     let vector = vectors.into_iter().next();
 
-    store
-        .create(&memory, vector.as_deref())
-        .await?;
+    store.create(&memory, vector.as_deref()).await?;
 
     // Fire-and-forget: check auto-share rules for the newly created memory
     {
@@ -258,7 +259,9 @@ pub async fn search_memories(
     Query(params): Query<SearchQuery>,
 ) -> Result<Json<SearchResponseDto>, OmemError> {
     if params.q.is_empty() {
-        return Err(OmemError::Validation("query parameter 'q' is required".to_string()));
+        return Err(OmemError::Validation(
+            "query parameter 'q' is required".to_string(),
+        ));
     }
 
     let vectors = state
@@ -274,7 +277,10 @@ pub async fn search_memories(
         .await?;
 
     if spaces.is_empty() {
-        let store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
+        let store = state
+            .store_manager
+            .get_store(&personal_space_id(&auth.tenant_id))
+            .await?;
 
         let request = SearchRequest {
             query: params.q,
@@ -284,7 +290,10 @@ pub async fn search_memories(
             limit: Some(params.limit),
             min_score: params.min_score,
             include_trace: params.include_trace,
-            tags_filter: params.tags.as_ref().map(|t| t.split(',').map(|s| s.trim().to_string()).collect()),
+            tags_filter: params
+                .tags
+                .as_ref()
+                .map(|t| t.split(',').map(|s| s.trim().to_string()).collect()),
             source_filter: params.source.clone(),
             agent_id_filter: params.agent_id.clone(),
         };
@@ -304,7 +313,8 @@ pub async fn search_memories(
 
         if params.check_stale {
             for result in &mut results {
-                result.stale_info = check_stale_for_memory(&result.memory, &state.store_manager).await;
+                result.stale_info =
+                    check_stale_for_memory(&result.memory, &state.store_manager).await;
             }
         }
 
@@ -341,7 +351,9 @@ pub async fn search_memories(
         let limit = params.limit;
         let min_score = params.min_score;
         let tags_filter = params.tags.as_ref().map(|t| {
-            t.split(',').map(|s| s.trim().to_string()).collect::<Vec<_>>()
+            t.split(',')
+                .map(|s| s.trim().to_string())
+                .collect::<Vec<_>>()
         });
         let source_filter = params.source.clone();
         let agent_id_filter = params.agent_id.clone();
@@ -402,7 +414,11 @@ pub async fn search_memories(
 
     let mut results: Vec<SearchResultDto> = all_results
         .into_iter()
-        .map(|(memory, score, _space_id)| SearchResultDto { memory, score, stale_info: None })
+        .map(|(memory, score, _space_id)| SearchResultDto {
+            memory,
+            score,
+            stale_info: None,
+        })
         .collect();
 
     if params.check_stale {
@@ -417,7 +433,10 @@ pub async fn search_memories(
     }))
 }
 
-fn build_trace(include: bool, trace: &crate::retrieve::trace::RetrievalTrace) -> Option<serde_json::Value> {
+fn build_trace(
+    include: bool,
+    trace: &crate::retrieve::trace::RetrievalTrace,
+) -> Option<serde_json::Value> {
     if !include {
         return None;
     }
@@ -436,7 +455,10 @@ fn build_trace(include: bool, trace: &crate::retrieve::trace::RetrievalTrace) ->
     }))
 }
 
-pub(crate) async fn check_stale_for_memory(memory: &Memory, store_manager: &StoreManager) -> Option<StaleInfo> {
+pub(crate) async fn check_stale_for_memory(
+    memory: &Memory,
+    store_manager: &StoreManager,
+) -> Option<StaleInfo> {
     let provenance = memory.provenance.as_ref()?;
 
     let source_store = store_manager
@@ -472,7 +494,10 @@ pub async fn get_memory(
     Path(id): Path<String>,
     Query(params): Query<GetMemoryQuery>,
 ) -> Result<Json<serde_json::Value>, OmemError> {
-    let store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
+    let store = state
+        .store_manager
+        .get_store(&personal_space_id(&auth.tenant_id))
+        .await?;
     let memory = store
         .get_by_id(&id)
         .await?
@@ -498,7 +523,10 @@ pub async fn update_memory(
     Path(id): Path<String>,
     Json(body): Json<UpdateMemoryBody>,
 ) -> Result<Json<Memory>, OmemError> {
-    let store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
+    let store = state
+        .store_manager
+        .get_store(&personal_space_id(&auth.tenant_id))
+        .await?;
     let mut memory = store
         .get_by_id(&id)
         .await?
@@ -549,7 +577,10 @@ pub async fn delete_memory(
     Extension(auth): Extension<AuthInfo>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, OmemError> {
-    let store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
+    let store = state
+        .store_manager
+        .get_store(&personal_space_id(&auth.tenant_id))
+        .await?;
     store
         .get_by_id(&id)
         .await?
@@ -566,7 +597,10 @@ pub async fn list_memories(
     Extension(auth): Extension<AuthInfo>,
     Query(params): Query<ListQuery>,
 ) -> Result<Json<ListResponseDto>, OmemError> {
-    let store = state.store_manager.get_store(&personal_space_id(&auth.tenant_id)).await?;
+    let store = state
+        .store_manager
+        .get_store(&personal_space_id(&auth.tenant_id))
+        .await?;
 
     let filter = ListFilter {
         category: params.category,
@@ -617,10 +651,7 @@ fn build_batch_delete_where(filter: &BatchDeleteFilter) -> String {
     let mut conditions = Vec::new();
 
     if let Some(ref source) = filter.source {
-        conditions.push(format!(
-            "source LIKE '{}%'",
-            source.replace('\'', "''")
-        ));
+        conditions.push(format!("source LIKE '{}%'", source.replace('\'', "''")));
     }
     if let Some(ref tags) = filter.tags {
         for tag in tags {
@@ -712,7 +743,11 @@ pub async fn delete_all_memories(
         .await?;
     let count = store.delete_all().await?;
 
-    let session_uri = format!("{}/{}", state.config.store_uri(), personal_space_id(&auth.tenant_id));
+    let session_uri = format!(
+        "{}/{}",
+        state.config.store_uri(),
+        personal_space_id(&auth.tenant_id)
+    );
     let session_store = SessionStore::new(&session_uri)
         .await
         .map_err(|e| OmemError::Storage(format!("session store: {e}")))?;

@@ -19,6 +19,10 @@ mod tests {
         let llm = NoopLlm;
         let result = llm.complete_text("sys", "user").await;
         assert!(result.is_err());
-        assert!(result.err().unwrap().to_string().contains("LLM not configured"));
+        assert!(result
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("LLM not configured"));
     }
 }

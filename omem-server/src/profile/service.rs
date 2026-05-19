@@ -24,10 +24,7 @@ impl ProfileService {
         Self { store }
     }
 
-    pub async fn get_profile(
-        &self,
-        query: Option<&str>,
-    ) -> Result<ProfileResponse, OmemError> {
+    pub async fn get_profile(&self, query: Option<&str>) -> Result<ProfileResponse, OmemError> {
         let all_memories = self.store.list(200, 0).await?;
 
         let mut static_memories: Vec<_> = all_memories
@@ -48,8 +45,7 @@ impl ProfileService {
             .map(|m| m.content.clone())
             .collect();
 
-        let cutoff = Utc::now()
-            - chrono::TimeDelta::try_days(7).unwrap_or_default();
+        let cutoff = Utc::now() - chrono::TimeDelta::try_days(7).unwrap_or_default();
         let dynamic_context: Vec<String> = all_memories
             .iter()
             .filter(|m| {
@@ -159,8 +155,14 @@ mod tests {
 
         let resp = svc.get_profile(None).await.expect("get_profile");
         assert_eq!(resp.profile.static_facts.len(), 2);
-        assert!(resp.profile.static_facts.contains(&"speaks mandarin".to_string()));
-        assert!(resp.profile.static_facts.contains(&"prefers dark mode".to_string()));
+        assert!(resp
+            .profile
+            .static_facts
+            .contains(&"speaks mandarin".to_string()));
+        assert!(resp
+            .profile
+            .static_facts
+            .contains(&"prefers dark mode".to_string()));
         assert!(resp.search_results.is_none());
     }
 
@@ -187,8 +189,14 @@ mod tests {
 
         let resp = svc.get_profile(None).await.expect("get_profile");
         assert_eq!(resp.profile.dynamic_context.len(), 2);
-        assert!(resp.profile.dynamic_context.contains(&"debugging OOM issue".to_string()));
-        assert!(resp.profile.dynamic_context.contains(&"auth refactor pattern".to_string()));
+        assert!(resp
+            .profile
+            .dynamic_context
+            .contains(&"debugging OOM issue".to_string()));
+        assert!(resp
+            .profile
+            .dynamic_context
+            .contains(&"auth refactor pattern".to_string()));
     }
 
     #[tokio::test]
@@ -202,15 +210,14 @@ mod tests {
             Category::Events,
             &days_ago_str(14),
         );
-        let recent_event = make_memory_with(
-            "t-001",
-            "recent event",
-            Category::Events,
-            &days_ago_str(1),
-        );
+        let recent_event =
+            make_memory_with("t-001", "recent event", Category::Events, &days_ago_str(1));
 
         store.create(&old_event, None).await.expect("create old");
-        store.create(&recent_event, None).await.expect("create recent");
+        store
+            .create(&recent_event, None)
+            .await
+            .expect("create recent");
 
         let resp = svc.get_profile(None).await.expect("get_profile");
         assert_eq!(resp.profile.dynamic_context.len(), 1);

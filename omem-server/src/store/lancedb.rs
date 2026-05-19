@@ -153,9 +153,7 @@ impl LanceStore {
             table
                 .add_columns(NewColumnTransform::AllNulls(missing_schema), None)
                 .await
-                .map_err(|e| {
-                    OmemError::Storage(format!("failed to add missing columns: {e}"))
-                })?;
+                .map_err(|e| OmemError::Storage(format!("failed to add missing columns: {e}")))?;
         }
 
         Ok(())
@@ -212,7 +210,11 @@ impl LanceStore {
             .map_err(|e| OmemError::Storage(format!("failed to open table: {e}")))
     }
 
-    fn memory_to_batch(&self, memory: &Memory, vector: Option<&[f32]>) -> Result<RecordBatch, OmemError> {
+    fn memory_to_batch(
+        &self,
+        memory: &Memory,
+        vector: Option<&[f32]>,
+    ) -> Result<RecordBatch, OmemError> {
         let tags_json = serde_json::to_string(&memory.tags)
             .map_err(|e| OmemError::Storage(format!("failed to serialize tags: {e}")))?;
         let relations_json = serde_json::to_string(&memory.relations)
@@ -257,8 +259,14 @@ impl LanceStore {
                 Arc::new(StringArray::from(vec![memory.l1_overview.as_str()])),
                 Arc::new(StringArray::from(vec![memory.l2_content.as_str()])),
                 Arc::new(vector_array),
-                Arc::new(StringArray::from(vec![memory.category.to_string().as_str()])),
-                Arc::new(StringArray::from(vec![memory.memory_type.to_string().as_str()])),
+                Arc::new(StringArray::from(vec![memory
+                    .category
+                    .to_string()
+                    .as_str()])),
+                Arc::new(StringArray::from(vec![memory
+                    .memory_type
+                    .to_string()
+                    .as_str()])),
                 Arc::new(StringArray::from(vec![memory.state.to_string().as_str()])),
                 Arc::new(StringArray::from(vec![memory.tier.to_string().as_str()])),
                 Arc::new(Float32Array::from(vec![memory.importance])),
@@ -333,7 +341,11 @@ impl LanceStore {
         let get_str_or = |name: &str, default: &str| -> String {
             batch
                 .column_by_name(name)
-                .and_then(|col| col.as_any().downcast_ref::<StringArray>().map(|a| a.value(row).to_string()))
+                .and_then(|col| {
+                    col.as_any()
+                        .downcast_ref::<StringArray>()
+                        .map(|a| a.value(row).to_string())
+                })
                 .unwrap_or_else(|| default.to_string())
         };
 
@@ -461,11 +473,7 @@ impl LanceStore {
         Self::batch_to_memories(&batches)
     }
 
-    pub async fn create(
-        &self,
-        memory: &Memory,
-        vector: Option<&[f32]>,
-    ) -> Result<(), OmemError> {
+    pub async fn create(&self, memory: &Memory, vector: Option<&[f32]>) -> Result<(), OmemError> {
         let batch = self.memory_to_batch(memory, vector)?;
         let table = self.open_table().await?;
         let reader = RecordBatchIterator::new(vec![Ok(batch)], self.schema());
@@ -511,10 +519,7 @@ impl LanceStore {
         let table = self.open_table().await?;
         let batches: Vec<RecordBatch> = table
             .query()
-            .only_if(format!(
-                "id = '{}' AND state != 'deleted'",
-                escape_sql(id)
-            ))
+            .only_if(format!("id = '{}' AND state != 'deleted'", escape_sql(id)))
             .limit(1)
             .execute()
             .await
@@ -534,9 +539,7 @@ impl LanceStore {
         let fsl = col
             .as_any()
             .downcast_ref::<FixedSizeListArray>()
-            .ok_or_else(|| {
-                OmemError::Storage("vector column is not FixedSizeList".to_string())
-            })?;
+            .ok_or_else(|| OmemError::Storage("vector column is not FixedSizeList".to_string()))?;
         let inner = fsl.value(0);
         let float_arr = inner
             .as_any()
@@ -545,11 +548,7 @@ impl LanceStore {
         Ok(Some(float_arr.values().to_vec()))
     }
 
-    pub async fn update(
-        &self,
-        memory: &Memory,
-        vector: Option<&[f32]>,
-    ) -> Result<(), OmemError> {
+    pub async fn update(&self, memory: &Memory, vector: Option<&[f32]>) -> Result<(), OmemError> {
         // Auto-increment version on every update
         let mut mem = memory.clone();
         mem.version = Some(mem.version.unwrap_or(0) + 1);
@@ -583,11 +582,7 @@ impl LanceStore {
         self.update(&updated, None).await
     }
 
-    pub async fn list(
-        &self,
-        limit: usize,
-        offset: usize,
-    ) -> Result<Vec<Memory>, OmemError> {
+    pub async fn list(&self, limit: usize, offset: usize) -> Result<Vec<Memory>, OmemError> {
         let table = self.open_table().await?;
         let batches: Vec<RecordBatch> = table
             .query()
@@ -695,11 +690,7 @@ impl LanceStore {
         Ok(results)
     }
 
-    pub fn build_visibility_filter(
-        &self,
-        agent_id: &str,
-        accessible_spaces: &[String],
-    ) -> String {
+    pub fn build_visibility_filter(&self, agent_id: &str, accessible_spaces: &[String]) -> String {
         let mut conditions = vec!["state != 'deleted'".to_string()];
 
         let mut vis_conditions = vec!["visibility = 'global'".to_string()];
@@ -744,7 +735,9 @@ impl LanceStore {
             .create_index(&["content"], Index::FTS(FtsIndexBuilder::default()))
             .execute()
             .await
-            .map_err(|e| OmemError::Storage(format!("failed to create FTS index on content: {e}")))?;
+            .map_err(|e| {
+                OmemError::Storage(format!("failed to create FTS index on content: {e}"))
+            })?;
         table
             .create_index(&["l0_abstract"], Index::FTS(FtsIndexBuilder::default()))
             .execute()
@@ -900,10 +893,7 @@ impl LanceStore {
         if let Some(ref tags) = filter.tags {
             for tag in tags {
                 let escaped = escape_sql(tag);
-                conditions.push(format!(
-                    "(tags LIKE '%\"{}\"%')",
-                    escaped
-                ));
+                conditions.push(format!("(tags LIKE '%\"{}\"%')", escaped));
             }
         }
 
@@ -954,7 +944,10 @@ mod tests {
         // Store + retrieve a memory with a 384-dim vector — should round-trip.
         let mem = make_memory("t-384", "tiny embedding test");
         let v = vec![0.1f32; 384];
-        store.create(&mem, Some(&v)).await.expect("create with 384-dim vector");
+        store
+            .create(&mem, Some(&v))
+            .await
+            .expect("create with 384-dim vector");
         let fetched = store.get_by_id(&mem.id).await.unwrap().expect("memory");
         assert_eq!(fetched.id, mem.id);
     }
@@ -969,7 +962,10 @@ mod tests {
 
         let mem = make_memory("t-bad", "wrong-dim test");
         let v = vec![0.1f32; 768]; // wrong size for a 384-dim table
-        let err = store.create(&mem, Some(&v)).await.expect_err("should reject");
+        let err = store
+            .create(&mem, Some(&v))
+            .await
+            .expect_err("should reject");
         let msg = format!("{err:?}");
         assert!(msg.contains("does not match"), "unexpected error: {msg}");
     }
@@ -986,9 +982,15 @@ mod tests {
         let store = LanceStore::with_dim(&uri, 1024)
             .await
             .expect("with_dim 1024");
-        let err = store.init_table().await.expect_err("dim mismatch should error");
+        let err = store
+            .init_table()
+            .await
+            .expect_err("dim mismatch should error");
         let msg = format!("{err:?}");
-        assert!(msg.contains("dim mismatch") || msg.contains("vector dim"), "unexpected error: {msg}");
+        assert!(
+            msg.contains("dim mismatch") || msg.contains("vector dim"),
+            "unexpected error: {msg}"
+        );
     }
 
     #[tokio::test]
@@ -1063,7 +1065,10 @@ mod tests {
 
         store.create_fts_index().await.unwrap();
 
-        let results = store.fts_search("programming language", 10, None, None).await.unwrap();
+        let results = store
+            .fts_search("programming language", 10, None, None)
+            .await
+            .unwrap();
 
         assert!(!results.is_empty());
         let contents: Vec<&str> = results.iter().map(|(m, _)| m.content.as_str()).collect();
@@ -1136,9 +1141,24 @@ mod tests {
     async fn test_list_filtered_by_category() {
         let (store, _dir) = setup().await;
 
-        let m1 = Memory::new("dark mode pref", Category::Preferences, MemoryType::Insight, "t-001");
-        let m2 = Memory::new("another pref", Category::Preferences, MemoryType::Insight, "t-001");
-        let m3 = Memory::new("meeting happened", Category::Events, MemoryType::Session, "t-001");
+        let m1 = Memory::new(
+            "dark mode pref",
+            Category::Preferences,
+            MemoryType::Insight,
+            "t-001",
+        );
+        let m2 = Memory::new(
+            "another pref",
+            Category::Preferences,
+            MemoryType::Insight,
+            "t-001",
+        );
+        let m3 = Memory::new(
+            "meeting happened",
+            Category::Events,
+            MemoryType::Session,
+            "t-001",
+        );
 
         store.create(&m1, None).await.unwrap();
         store.create(&m2, None).await.unwrap();
@@ -1278,12 +1298,11 @@ mod tests {
     #[tokio::test]
     async fn test_schema_evolution_adds_missing_columns() {
         let dir = TempDir::new().unwrap();
-        let store = LanceStore::new(dir.path().to_str().unwrap())
-            .await
-            .unwrap();
+        let store = LanceStore::new(dir.path().to_str().unwrap()).await.unwrap();
 
         let old_schema = Arc::new(Schema::new(
-            store.schema()
+            store
+                .schema()
                 .fields()
                 .iter()
                 .filter(|f| f.name() != "version" && f.name() != "provenance_source_id")
@@ -1302,7 +1321,9 @@ mod tests {
         let table_before = store.open_table().await.unwrap();
         let schema_before = table_before.schema().await.unwrap();
         assert!(schema_before.field_with_name("version").is_err());
-        assert!(schema_before.field_with_name("provenance_source_id").is_err());
+        assert!(schema_before
+            .field_with_name("provenance_source_id")
+            .is_err());
 
         store.init_table().await.unwrap();
 
@@ -1316,9 +1337,7 @@ mod tests {
     #[tokio::test]
     async fn test_init_table_idempotent() {
         let dir = TempDir::new().unwrap();
-        let store = LanceStore::new(dir.path().to_str().unwrap())
-            .await
-            .unwrap();
+        let store = LanceStore::new(dir.path().to_str().unwrap()).await.unwrap();
 
         store.init_table().await.unwrap();
 
@@ -1336,12 +1355,11 @@ mod tests {
     #[tokio::test]
     async fn test_find_by_provenance_source_missing_column() {
         let dir = TempDir::new().unwrap();
-        let store = LanceStore::new(dir.path().to_str().unwrap())
-            .await
-            .unwrap();
+        let store = LanceStore::new(dir.path().to_str().unwrap()).await.unwrap();
 
         let old_schema = Arc::new(Schema::new(
-            store.schema()
+            store
+                .schema()
                 .fields()
                 .iter()
                 .filter(|f| f.name() != "provenance_source_id")
@@ -1355,10 +1373,7 @@ mod tests {
             .await
             .unwrap();
 
-        let result = store
-            .find_by_provenance_source("some-id")
-            .await
-            .unwrap();
+        let result = store.find_by_provenance_source("some-id").await.unwrap();
         assert!(result.is_empty());
     }
 }

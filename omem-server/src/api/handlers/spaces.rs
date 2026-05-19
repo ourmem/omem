@@ -164,9 +164,7 @@ pub async fn update_space(
             .any(|m| m.user_id == auth.tenant_id && m.role == MemberRole::Admin);
 
     if !is_admin {
-        return Err(OmemError::Unauthorized(
-            "admin access required".to_string(),
-        ));
+        return Err(OmemError::Unauthorized("admin access required".to_string()));
     }
 
     if let Some(name) = body.name {

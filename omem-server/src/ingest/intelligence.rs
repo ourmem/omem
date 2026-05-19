@@ -31,8 +31,14 @@ pub fn detect_content_type(content: &str) -> ContentHint {
     // Require at least 3 conversation-role lines to classify as conversation.
     // A document mentioning "user:" once in an example should NOT be treated as a chat log.
     let role_patterns: &[&str] = &[
-        "\nuser:", "\nUser:", "\nassistant:", "\nAssistant:",
-        "\nHuman:", "\nhuman:", "\nAI:", "\nsystem:",
+        "\nuser:",
+        "\nUser:",
+        "\nassistant:",
+        "\nAssistant:",
+        "\nHuman:",
+        "\nhuman:",
+        "\nAI:",
+        "\nsystem:",
     ];
     let role_line_count: usize = role_patterns
         .iter()
@@ -188,7 +194,10 @@ impl IntelligenceTask {
             .await;
 
         info!(task_id = %self.task_id, "waiting for reconcile lock");
-        let _reconcile_permit = self.reconcile_semaphore.acquire().await
+        let _reconcile_permit = self
+            .reconcile_semaphore
+            .acquire()
+            .await
             .map_err(|e| OmemError::Internal(format!("reconcile semaphore: {e}")))?;
         info!(task_id = %self.task_id, "reconcile lock acquired");
 
@@ -212,8 +221,7 @@ impl IntelligenceTask {
             Err(e) => {
                 error!(error = %e, task_id = %self.task_id, "reconciliation failed");
                 let err_msg = format!("reconciliation failed: {e}");
-                self.set_task_field(move |t| t.errors.push(err_msg))
-                    .await;
+                self.set_task_field(move |t| t.errors.push(err_msg)).await;
             }
         }
 
@@ -256,8 +264,7 @@ impl IntelligenceTask {
                 Err(e) => {
                     warn!(chunk = i, error = %e, task_id = %self.task_id, "chunk extraction failed");
                     let err_msg = format!("chunk {} extraction failed: {}", i, e);
-                    self.set_task_field(move |t| t.errors.push(err_msg))
-                        .await;
+                    self.set_task_field(move |t| t.errors.push(err_msg)).await;
                 }
             }
         }
@@ -290,8 +297,7 @@ impl IntelligenceTask {
                 Err(e) => {
                     warn!(section = i, error = %e, task_id = %self.task_id, "section extraction failed");
                     let err_msg = format!("section {} extraction failed: {}", i, e);
-                    self.set_task_field(move |t| t.errors.push(err_msg))
-                        .await;
+                    self.set_task_field(move |t| t.errors.push(err_msg)).await;
                 }
             }
         }
@@ -448,7 +454,8 @@ mod tests {
         if chunks.len() >= 2 {
             let first_end = &chunks[0][chunks[0].len().saturating_sub(6)..];
             assert!(
-                chunks[1].starts_with(first_end) || chunks[1].contains(&chunks[0][chunks[0].len().saturating_sub(4)..]),
+                chunks[1].starts_with(first_end)
+                    || chunks[1].contains(&chunks[0][chunks[0].len().saturating_sub(4)..]),
                 "overlap content should appear in next chunk"
             );
         }
@@ -456,7 +463,10 @@ mod tests {
 
     #[test]
     fn heading_boundary_preferred() {
-        let text = format!("intro text\n\nparagraph\n## Heading\nmore text{}", "x".repeat(100));
+        let text = format!(
+            "intro text\n\nparagraph\n## Heading\nmore text{}",
+            "x".repeat(100)
+        );
         let chunks = smart_split(&text, 35, 0);
         assert!(chunks.len() >= 2);
         assert!(

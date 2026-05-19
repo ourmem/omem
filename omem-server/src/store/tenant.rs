@@ -190,6 +190,9 @@ mod tests {
     #[tokio::test]
     async fn test_init_table_idempotent() {
         let (store, _dir) = setup().await;
-        store.init_table().await.expect("second init should succeed");
+        store
+            .init_table()
+            .await
+            .expect("second init should succeed");
     }
 }

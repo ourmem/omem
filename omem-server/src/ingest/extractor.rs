@@ -4,7 +4,7 @@ use regex::Regex;
 
 use crate::domain::error::OmemError;
 use crate::ingest::prompts;
-use crate::ingest::types::{ExtractionResult, ExtractedFact, IngestMessage};
+use crate::ingest::types::{ExtractedFact, ExtractionResult, IngestMessage};
 use crate::llm::{complete_json, LlmService};
 
 const DEFAULT_MAX_FACTS: usize = 50;
@@ -132,20 +132,16 @@ fn normalize_category(raw: &str) -> String {
 ///   - "Conversation info (untrusted metadata):" + JSON blocks
 ///   - "Sender (untrusted metadata):" + JSON blocks
 pub fn strip_envelope_metadata(text: &str) -> String {
-    let system_channel =
-        Regex::new(r"(?m)^(?:\w+:\s*)?System:\s*\[.*?\]\s*Channel.*$")
-            .expect("valid regex: system_channel");
+    let system_channel = Regex::new(r"(?m)^(?:\w+:\s*)?System:\s*\[.*?\]\s*Channel.*$")
+        .expect("valid regex: system_channel");
     let result = system_channel.replace_all(text, "");
 
-    let conv_info = Regex::new(
-        r"(?ms)Conversation info \(untrusted metadata\):\s*\{.*?\}",
-    )
-    .expect("valid regex: conv_info");
+    let conv_info = Regex::new(r"(?ms)Conversation info \(untrusted metadata\):\s*\{.*?\}")
+        .expect("valid regex: conv_info");
     let result = conv_info.replace_all(&result, "");
 
-    let sender_info =
-        Regex::new(r"(?ms)Sender \(untrusted metadata\):\s*\{.*?\}")
-            .expect("valid regex: sender_info");
+    let sender_info = Regex::new(r"(?ms)Sender \(untrusted metadata\):\s*\{.*?\}")
+        .expect("valid regex: sender_info");
     let result = sender_info.replace_all(&result, "");
 
     result.into_owned()
@@ -273,7 +269,9 @@ mod tests {
         let facts = extractor.extract(&messages, None).await.expect("extract");
 
         let captured = llm.captured_user().expect("captured");
-        let conversation_part = captured.strip_prefix("Extract all distinct, atomic facts from the following conversation:\n\n").expect("prefix");
+        let conversation_part = captured
+            .strip_prefix("Extract all distinct, atomic facts from the following conversation:\n\n")
+            .expect("prefix");
         assert!(conversation_part.len() <= 100);
         assert_eq!(facts.len(), 1);
     }
@@ -332,7 +330,10 @@ mod tests {
 
         let messages = vec![
             msg("system", "System: [2024-01-01T00:00:00Z] Channel #general"),
-            msg("user", "Conversation info (untrusted metadata):\n{\"platform\": \"slack\"}\nI love cats"),
+            msg(
+                "user",
+                "Conversation info (untrusted metadata):\n{\"platform\": \"slack\"}\nI love cats",
+            ),
         ];
         let facts = extractor.extract(&messages, None).await.expect("extract");
 

@@ -23,9 +23,8 @@ pub async fn auth_middleware(
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
 
-    let api_key = api_key.ok_or_else(|| {
-        OmemError::Unauthorized("missing X-API-Key header".to_string())
-    })?;
+    let api_key =
+        api_key.ok_or_else(|| OmemError::Unauthorized("missing X-API-Key header".to_string()))?;
 
     let tenant = state
         .tenant_store

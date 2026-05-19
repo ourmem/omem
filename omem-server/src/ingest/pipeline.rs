@@ -107,7 +107,10 @@ impl IngestPipeline {
                 return;
             }
 
-            let facts = match extractor.extract(&sanitized, entity_context.as_deref()).await {
+            let facts = match extractor
+                .extract(&sanitized, entity_context.as_deref())
+                .await
+            {
                 Ok(f) => f,
                 Err(e) => {
                     error!(error = %e, task_id = %bg_task_id, "extraction failed — raw mode fallback");
@@ -469,14 +472,14 @@ mod tests {
         let (pipeline, session_store, _dir) = setup_pipeline(llm).await;
 
         let request = make_request(
-            vec![
-                ("user", "important data"),
-                ("assistant", "received"),
-            ],
+            vec![("user", "important data"), ("assistant", "received")],
             IngestMode::Smart,
         );
 
-        let response = pipeline.ingest(request).await.expect("ingest should succeed despite LLM failure");
+        let response = pipeline
+            .ingest(request)
+            .await
+            .expect("ingest should succeed despite LLM failure");
         assert_eq!(response.stored_count, 2);
 
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;

@@ -68,7 +68,11 @@ impl OpenAICompatEmbedder {
             client,
             url: format!("{base_url}/v1/embeddings"),
             model: config.embed_model.clone(),
-            dims: if config.embed_dim > 0 { config.embed_dim } else { 1024 },
+            dims: if config.embed_dim > 0 {
+                config.embed_dim
+            } else {
+                1024
+            },
         })
     }
 
@@ -150,7 +154,9 @@ mod tests {
             embed_base_url: String::new(),
             ..OmemConfig::default()
         };
-        let err = OpenAICompatEmbedder::new(&config).err().expect("should fail");
+        let err = OpenAICompatEmbedder::new(&config)
+            .err()
+            .expect("should fail");
         assert!(err.to_string().contains("embed_base_url is required"));
     }
 

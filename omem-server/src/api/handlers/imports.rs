@@ -112,8 +112,8 @@ pub async fn create_import(
     }
 
     let data = file_data.ok_or_else(|| OmemError::Validation("no 'file' field".to_string()))?;
-    let content =
-        String::from_utf8(data).map_err(|_| OmemError::Validation("not valid UTF-8".to_string()))?;
+    let content = String::from_utf8(data)
+        .map_err(|_| OmemError::Validation("not valid UTF-8".to_string()))?;
 
     let valid_types = ["memory", "session", "markdown", "jsonl"];
     if !valid_types.contains(&file_type.as_str()) {

@@ -13,14 +13,14 @@ pub use service::EmbedService;
 use crate::config::OmemConfig;
 use crate::domain::error::OmemError;
 
-pub async fn create_embed_service(
-    config: &OmemConfig,
-) -> Result<Box<dyn EmbedService>, OmemError> {
+pub async fn create_embed_service(config: &OmemConfig) -> Result<Box<dyn EmbedService>, OmemError> {
     match config.embed_provider.as_str() {
         #[cfg(feature = "bedrock")]
         "bedrock" => Ok(Box::new(BedrockEmbedder::new().await)),
         #[cfg(not(feature = "bedrock"))]
-        "bedrock" => Err(OmemError::Embedding("bedrock feature not enabled (musl build)".to_string())),
+        "bedrock" => Err(OmemError::Embedding(
+            "bedrock feature not enabled (musl build)".to_string(),
+        )),
         "openai-compatible" => Ok(Box::new(OpenAICompatEmbedder::new(config)?)),
         _ => Ok(Box::new(NoopEmbedder::new(1024))),
     }

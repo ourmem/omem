@@ -69,10 +69,10 @@ impl BedrockEmbedder {
                 .await
             {
                 Ok(output) => {
-                    let resp: TitanEmbedResponse =
-                        serde_json::from_slice(output.body().as_ref()).map_err(|e| {
-                            OmemError::Embedding(format!("failed to parse response: {e}"))
-                        })?;
+                    let resp: TitanEmbedResponse = serde_json::from_slice(output.body().as_ref())
+                        .map_err(|e| {
+                        OmemError::Embedding(format!("failed to parse response: {e}"))
+                    })?;
                     return Ok(resp.embedding);
                 }
                 Err(e) => {

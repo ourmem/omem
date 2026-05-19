@@ -190,7 +190,9 @@ impl RetrievalPipeline {
 
         let vector_fut = async {
             if let Some(ref qv) = request.query_vector {
-                self.store.vector_search(qv, fetch_limit, 0.0, scope, None).await
+                self.store
+                    .vector_search(qv, fetch_limit, 0.0, scope, None)
+                    .await
             } else {
                 Ok(Vec::new())
             }
@@ -524,9 +526,7 @@ impl RetrievalPipeline {
         (entries, stage)
     }
 
-    fn stage_length_normalization(
-        mut entries: Vec<FusionEntry>,
-    ) -> (Vec<FusionEntry>, StageTrace) {
+    fn stage_length_normalization(mut entries: Vec<FusionEntry>) -> (Vec<FusionEntry>, StageTrace) {
         let stage_start = Instant::now();
         let input_count = entries.len();
 
@@ -654,10 +654,7 @@ impl RetrievalPipeline {
             return None;
         }
         let min = all_scores.iter().copied().fold(f32::INFINITY, f32::min);
-        let max = all_scores
-            .iter()
-            .copied()
-            .fold(f32::NEG_INFINITY, f32::max);
+        let max = all_scores.iter().copied().fold(f32::NEG_INFINITY, f32::max);
         Some((min, max))
     }
 }
@@ -734,7 +731,11 @@ mod tests {
     async fn test_hybrid_search() {
         let (store, _dir) = setup().await;
 
-        let m1 = make_memory("t-001", "rust programming language is fast", MemoryType::Insight);
+        let m1 = make_memory(
+            "t-001",
+            "rust programming language is fast",
+            MemoryType::Insight,
+        );
         let m2 = make_memory("t-001", "python scripting language", MemoryType::Insight);
         let m3 = make_memory("t-001", "the weather is sunny today", MemoryType::Insight);
 
@@ -1173,9 +1174,21 @@ mod tests {
         let worst = result.iter().find(|e| e.memory.content == "worst").unwrap();
         let mid = result.iter().find(|e| e.memory.content == "mid").unwrap();
 
-        assert!((best.rrf_score - 1.0).abs() < 1e-6, "best should be 1.0, got {}", best.rrf_score);
-        assert!((worst.rrf_score - 0.0).abs() < 1e-6, "worst should be 0.0, got {}", worst.rrf_score);
-        assert!(mid.rrf_score > 0.0 && mid.rrf_score < 1.0, "mid should be between 0 and 1, got {}", mid.rrf_score);
+        assert!(
+            (best.rrf_score - 1.0).abs() < 1e-6,
+            "best should be 1.0, got {}",
+            best.rrf_score
+        );
+        assert!(
+            (worst.rrf_score - 0.0).abs() < 1e-6,
+            "worst should be 0.0, got {}",
+            worst.rrf_score
+        );
+        assert!(
+            mid.rrf_score > 0.0 && mid.rrf_score < 1.0,
+            "mid should be between 0 and 1, got {}",
+            mid.rrf_score
+        );
     }
 
     #[test]
@@ -1185,7 +1198,10 @@ mod tests {
         let (result, _) = RetrievalPipeline::stage_rrf_normalize(entries);
         assert_eq!(result.len(), 1);
         let score = result[0].rrf_score;
-        assert!((score - 0.64).abs() < 1e-4, "0.016 * 40 = 0.64, got {score}");
+        assert!(
+            (score - 0.64).abs() < 1e-4,
+            "0.016 * 40 = 0.64, got {score}"
+        );
     }
 
     #[test]
@@ -1193,15 +1209,16 @@ mod tests {
         let entries = vec![make_entry("high", 0.05)];
 
         let (result, _) = RetrievalPipeline::stage_rrf_normalize(entries);
-        assert!((result[0].rrf_score - 1.0).abs() < 1e-6, "should clamp to 1.0, got {}", result[0].rrf_score);
+        assert!(
+            (result[0].rrf_score - 1.0).abs() < 1e-6,
+            "should clamp to 1.0, got {}",
+            result[0].rrf_score
+        );
     }
 
     #[test]
     fn test_rrf_normalize_equal_scores() {
-        let entries = vec![
-            make_entry("a", 0.016),
-            make_entry("b", 0.016),
-        ];
+        let entries = vec![make_entry("a", 0.016), make_entry("b", 0.016)];
 
         let (result, _) = RetrievalPipeline::stage_rrf_normalize(entries);
         assert!((result[0].rrf_score - 1.0).abs() < 1e-6);
