@@ -55,7 +55,7 @@ export function registerTools(server: McpServer, client: OmemClient): void {
     {
       title: "Search Memories",
       description:
-        "Search stored memories by semantic query. Returns the most relevant memories ranked by similarity.",
+        "Search stored memories by semantic query. Returns the most relevant memories ranked by similarity. By default searches across all spaces the caller has access to (personal + team + organization). Pass `space` to restrict to specific spaces — useful when you want a query scoped to one context (e.g. work-only) or to peek into a non-default space (e.g. 'this question is about something in our team space').",
       inputSchema: {
         query: z.string().describe("Search query"),
         limit: z
@@ -73,15 +73,22 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           .array(z.string())
           .optional()
           .describe("Filter by tags"),
+        space: z
+          .string()
+          .optional()
+          .describe(
+            "Restrict search to specific spaces. Comma-separated space IDs (e.g. 'personal:doc,team:synchresis-work'), a single ID, or 'all' for every accessible space. Omitted = all accessible spaces.",
+          ),
       },
     },
-    async ({ query, limit, scope, tags }) => {
+    async ({ query, limit, scope, tags, space }) => {
       try {
         const results = await client.searchMemories(
           query,
           limit ?? 10,
           scope,
           tags,
+          space,
         );
 
         if (results.length === 0) {
