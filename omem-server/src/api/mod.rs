@@ -14,6 +14,7 @@ mod tests {
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use http_body_util::BodyExt;
+    use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
     use tower::ServiceExt;
 
     use crate::api::{build_router, AppState};
@@ -114,6 +115,25 @@ mod tests {
             .to_bytes();
         let json: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
         json["api_key"].as_str().expect("api_key").to_string()
+    }
+
+    async fn create_test_space(app: &axum::Router, api_key: &str) -> String {
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/spaces")
+                    .header("content-type", "application/json")
+                    .header("x-api-key", api_key)
+                    .body(Body::from(r#"{"name":"Team Space","space_type":"team"}"#))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        let bytes = resp.into_body().collect().await.expect("body").to_bytes();
+        let space: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        space["id"].as_str().expect("space id").to_string()
     }
 
     #[tokio::test]
@@ -713,7 +733,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_tenant_without_name_returns_400() {
+    async fn test_tenant_without_name_auto_generates() {
         let (app, _dir) = setup_app().await;
 
         let response = app
@@ -728,7 +748,16 @@ mod tests {
             .await
             .expect("response");
 
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = response
+            .into_body()
+            .collect()
+            .await
+            .expect("body")
+            .to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        assert!(json["id"].as_str().is_some());
+        assert_eq!(json["status"], "active");
     }
 
     #[tokio::test]
@@ -1291,36 +1320,14 @@ mod tests {
     async fn test_add_member() {
         let (app, _dir) = setup_app().await;
         let api_key = create_test_tenant(&app).await;
-
-        let create_resp = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/v1/spaces")
-                    .header("content-type", "application/json")
-                    .header("x-api-key", &api_key)
-                    .body(Body::from(r#"{"name":"Team Space","space_type":"team"}"#))
-                    .expect("request"),
-            )
-            .await
-            .expect("response");
-
-        let bytes = create_resp
-            .into_body()
-            .collect()
-            .await
-            .expect("body")
-            .to_bytes();
-        let space: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
-        let space_id = space["id"].as_str().expect("id");
+        let space_id = create_test_space(&app, &api_key).await;
 
         let response = app
             .clone()
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri(format!("/v1/spaces/{space_id}/members"))
+                    .uri(format!("/v1/spaces/{}/members", utf8_percent_encode(&space_id, NON_ALPHANUMERIC)))
                     .header("content-type", "application/json")
                     .header("x-api-key", &api_key)
                     .body(Body::from(r#"{"user_id":"bob","role":"member"}"#))
@@ -1379,7 +1386,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("DELETE")
-                    .uri(format!("/v1/spaces/{space_id}/members/alice"))
+                    .uri(format!("/v1/spaces/{}/members/alice", utf8_percent_encode(&space_id, NON_ALPHANUMERIC)))
                     .header("x-api-key", &api_key)
                     .body(Body::empty())
                     .expect("request"),
@@ -1511,7 +1518,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("DELETE")
-                    .uri(format!("/v1/spaces/{space_id}"))
+                    .uri(format!("/v1/spaces/{}", utf8_percent_encode(&space_id, NON_ALPHANUMERIC)))
                     .header("x-api-key", &api_key)
                     .body(Body::empty())
                     .expect("request"),
@@ -1525,7 +1532,7 @@ mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri(format!("/v1/spaces/{space_id}"))
+                    .uri(format!("/v1/spaces/{}", utf8_percent_encode(&space_id, NON_ALPHANUMERIC)))
                     .header("x-api-key", &api_key)
                     .body(Body::empty())
                     .expect("request"),
@@ -1571,7 +1578,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("PUT")
-                    .uri(format!("/v1/spaces/{space_id}/members/carol"))
+                    .uri(format!("/v1/spaces/{}/members/carol", utf8_percent_encode(&space_id, NON_ALPHANUMERIC)))
                     .header("content-type", "application/json")
                     .header("x-api-key", &api_key)
                     .body(Body::from(r#"{"role":"admin"}"#))
