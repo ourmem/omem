@@ -1327,7 +1327,10 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri(format!("/v1/spaces/{}/members", utf8_percent_encode(&space_id, NON_ALPHANUMERIC)))
+                    .uri(format!(
+                        "/v1/spaces/{}/members",
+                        utf8_percent_encode(&space_id, NON_ALPHANUMERIC)
+                    ))
                     .header("content-type", "application/json")
                     .header("x-api-key", &api_key)
                     .body(Body::from(r#"{"user_id":"bob","role":"member"}"#))
@@ -1386,7 +1389,10 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("DELETE")
-                    .uri(format!("/v1/spaces/{}/members/alice", utf8_percent_encode(&space_id, NON_ALPHANUMERIC)))
+                    .uri(format!(
+                        "/v1/spaces/{}/members/alice",
+                        utf8_percent_encode(&space_id, NON_ALPHANUMERIC)
+                    ))
                     .header("x-api-key", &api_key)
                     .body(Body::empty())
                     .expect("request"),
@@ -1518,7 +1524,10 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("DELETE")
-                    .uri(format!("/v1/spaces/{}", utf8_percent_encode(&space_id, NON_ALPHANUMERIC)))
+                    .uri(format!(
+                        "/v1/spaces/{}",
+                        utf8_percent_encode(&space_id, NON_ALPHANUMERIC)
+                    ))
                     .header("x-api-key", &api_key)
                     .body(Body::empty())
                     .expect("request"),
@@ -1532,7 +1541,10 @@ mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri(format!("/v1/spaces/{}", utf8_percent_encode(&space_id, NON_ALPHANUMERIC)))
+                    .uri(format!(
+                        "/v1/spaces/{}",
+                        utf8_percent_encode(&space_id, NON_ALPHANUMERIC)
+                    ))
                     .header("x-api-key", &api_key)
                     .body(Body::empty())
                     .expect("request"),
@@ -1578,7 +1590,10 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("PUT")
-                    .uri(format!("/v1/spaces/{}/members/carol", utf8_percent_encode(&space_id, NON_ALPHANUMERIC)))
+                    .uri(format!(
+                        "/v1/spaces/{}/members/carol",
+                        utf8_percent_encode(&space_id, NON_ALPHANUMERIC)
+                    ))
                     .header("content-type", "application/json")
                     .header("x-api-key", &api_key)
                     .body(Body::from(r#"{"role":"admin"}"#))

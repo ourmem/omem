@@ -304,7 +304,7 @@ pub async fn get_tags(
         .into_iter()
         .filter(|(_, c)| *c >= params.min_count)
         .collect();
-    tags.sort_by(|a, b| b.1.cmp(&a.1));
+    tags.sort_by_key(|t| std::cmp::Reverse(t.1));
     let total_unique = tags.len();
     tags.truncate(params.limit);
 
@@ -554,7 +554,7 @@ pub async fn get_spaces_stats(
         }
 
         let mut top_categories: Vec<(String, usize)> = category_counts.into_iter().collect();
-        top_categories.sort_by(|a, b| b.1.cmp(&a.1));
+        top_categories.sort_by_key(|c| std::cmp::Reverse(c.1));
         top_categories.truncate(3);
 
         space_stats.push(serde_json::json!({
@@ -758,7 +758,7 @@ pub async fn get_agents_stats(
         }
 
         let mut top_categories: Vec<(String, usize)> = category_counts.into_iter().collect();
-        top_categories.sort_by(|a, b| b.1.cmp(&a.1));
+        top_categories.sort_by_key(|c| std::cmp::Reverse(c.1));
         top_categories.truncate(3);
 
         let share_count = agent_share_counts.get(agent_id).copied().unwrap_or(0);
