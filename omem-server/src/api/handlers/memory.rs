@@ -142,7 +142,7 @@ pub struct ListResponseDto {
 ///
 /// Two modes:
 /// - If `messages` present → ingest pipeline (async), returns 202
-/// - If `content` present → create single pinned memory, returns 201
+/// - If `content` present → create single insight memory, returns 201
 pub async fn create_memory(
     State(state): State<Arc<AppState>>,
     Extension(auth): Extension<AuthInfo>,
@@ -208,7 +208,7 @@ pub async fn create_memory(
 
     let memory_type = match body.memory_type {
         Some(s) => s.parse().map_err(OmemError::Validation)?,
-        None => MemoryType::Pinned,
+        None => MemoryType::Insight,
     };
 
     let mut memory = Memory::new(
