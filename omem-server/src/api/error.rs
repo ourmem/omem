@@ -20,9 +20,7 @@ impl IntoResponse for OmemError {
             OmemError::Storage(_)
             | OmemError::Embedding(_)
             | OmemError::Llm(_)
-            | OmemError::Internal(_) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "internal_error", None)
-            }
+            | OmemError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal_error", None),
         };
 
         let message = self.to_string();
