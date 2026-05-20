@@ -559,7 +559,7 @@ mod tests {
             .expect("body")
             .to_bytes();
         let default_created: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
-        assert_eq!(default_created["memory_type"], "pinned");
+        assert_eq!(default_created["memory_type"], "insight");
     }
 
     #[tokio::test]
@@ -575,7 +575,9 @@ mod tests {
                     .uri("/v1/memories")
                     .header("content-type", "application/json")
                     .header("x-api-key", &api_key)
-                    .body(Body::from(r#"{"content":"originally pinned"}"#))
+                    .body(Body::from(
+                        r#"{"content":"originally pinned","memory_type":"pinned"}"#,
+                    ))
                     .expect("request"),
             )
             .await
