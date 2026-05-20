@@ -20,6 +20,29 @@ use crate::retrieve::RetrievalPipeline;
 use crate::store::lancedb::ListFilter;
 use crate::store::StoreManager;
 
+/// Map an embedder failure to a structured error.
+///
+/// An over-context-window failure is a client-input problem (the content is
+/// too long for the configured embedder), so surface it as `ContentTooLong`
+/// (HTTP 413) rather than a generic 500 with the cause buried in a stringified
+/// upstream error. Any other embed failure stays `Embedding` (500).
+fn map_embed_error(content_len: usize, e: impl std::fmt::Display) -> OmemError {
+    let lc = e.to_string().to_lowercase();
+    if lc.contains("context window")
+        || lc.contains("context length")
+        || lc.contains("input length exceeds")
+        || lc.contains("maximum context")
+    {
+        OmemError::ContentTooLong {
+            length: content_len,
+            hint: "split the content into smaller memories or configure a longer-context embedder"
+                .to_string(),
+        }
+    } else {
+        OmemError::Embedding(format!("failed to embed content: {e}"))
+    }
+}
+
 // ── Request / Response DTOs ──────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -221,11 +244,12 @@ pub async fn create_memory(
     memory.source = body.source;
     memory.agent_id = auth.agent_id;
 
+    let content_len = content.chars().count();
     let vectors = state
         .embed
         .embed(&[content])
         .await
-        .map_err(|e| OmemError::Embedding(format!("failed to embed content: {e}")))?;
+        .map_err(|e| map_embed_error(content_len, e))?;
     let vector = vectors.into_iter().next();
 
     store.create(&memory, vector.as_deref()).await?;
@@ -569,11 +593,12 @@ pub async fn update_memory(
     memory.updated_at = chrono::Utc::now().to_rfc3339();
 
     let vector = if need_reembed {
+        let content_len = memory.content.chars().count();
         let vectors = state
             .embed
             .embed(&[memory.content.clone()])
             .await
-            .map_err(|e| OmemError::Embedding(format!("failed to embed content: {e}")))?;
+            .map_err(|e| map_embed_error(content_len, e))?;
         vectors.into_iter().next()
     } else {
         None

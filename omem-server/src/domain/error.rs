@@ -25,6 +25,9 @@ pub enum OmemError {
 
     #[error("internal error: {0}")]
     Internal(String),
+
+    #[error("content too long: {length} chars exceed the embedder's context window")]
+    ContentTooLong { length: usize, hint: String },
 }
 
 #[cfg(test)]

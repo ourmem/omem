@@ -7,26 +7,35 @@ use crate::domain::error::OmemError;
 
 impl IntoResponse for OmemError {
     fn into_response(self) -> Response {
-        let (status, code) = match &self {
-            OmemError::NotFound(_) => (StatusCode::NOT_FOUND, "not_found"),
-            OmemError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "unauthorized"),
-            OmemError::Validation(_) => (StatusCode::BAD_REQUEST, "validation_error"),
-            OmemError::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "rate_limited"),
+        let (status, code, hint) = match &self {
+            OmemError::NotFound(_) => (StatusCode::NOT_FOUND, "not_found", None),
+            OmemError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "unauthorized", None),
+            OmemError::Validation(_) => (StatusCode::BAD_REQUEST, "validation_error", None),
+            OmemError::ContentTooLong { hint, .. } => (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "content_too_long",
+                Some(hint.clone()),
+            ),
+            OmemError::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "rate_limited", None),
             OmemError::Storage(_)
             | OmemError::Embedding(_)
             | OmemError::Llm(_)
-            | OmemError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal_error"),
+            | OmemError::Internal(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "internal_error", None)
+            }
         };
 
         let message = self.to_string();
         tracing::error!(status = %status, code = code, error = %message, "request error");
 
-        let body = json!({
-            "error": {
-                "code": code,
-                "message": message,
-            }
+        let mut error_obj = json!({
+            "code": code,
+            "message": message,
         });
+        if let Some(hint) = hint {
+            error_obj["hint"] = json!(hint);
+        }
+        let body = json!({ "error": error_obj });
 
         (status, Json(body)).into_response()
     }
