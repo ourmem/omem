@@ -555,18 +555,26 @@ impl LanceStore {
         mem.updated_at = chrono::Utc::now().to_rfc3339();
 
         let table = self.open_table().await?;
-        table
-            .delete(&format!("id = '{}'", escape_sql(&mem.id)))
-            .await
-            .map_err(|e| OmemError::Storage(format!("delete for update failed: {e}")))?;
-
         let batch = self.memory_to_batch(&mem, vector)?;
         let reader = RecordBatchIterator::new(vec![Ok(batch)], self.schema());
-        table
-            .add(Box::new(reader) as Box<dyn arrow_array::RecordBatchReader + Send>)
-            .execute()
+
+        // Atomic upsert keyed on `id`: in a single committed transaction,
+        // replace the existing row (or insert it if it is somehow absent).
+        //
+        // This replaces a previous delete-then-add sequence, which was NOT
+        // atomic: if the operation was interrupted between the delete and the
+        // re-insert — e.g. the HTTP request was cancelled, so the handler
+        // future was dropped at the `.await` — the row was deleted but never
+        // restored, silently losing the memory. `merge_insert` commits as one
+        // transaction, so an interrupted update either fully applies or not at
+        // all; it can never leave the row deleted-without-replacement.
+        let mut merge = table.merge_insert(&["id"]);
+        merge.when_matched_update_all(None);
+        merge.when_not_matched_insert_all();
+        merge
+            .execute(Box::new(reader) as Box<dyn arrow_array::RecordBatchReader + Send>)
             .await
-            .map_err(|e| OmemError::Storage(format!("re-insert for update failed: {e}")))?;
+            .map_err(|e| OmemError::Storage(format!("merge-insert for update failed: {e}")))?;
         Ok(())
     }
 
@@ -1091,6 +1099,50 @@ mod tests {
         let after = store.get_by_id(&mem.id).await.unwrap();
         assert!(after.is_some());
         assert_eq!(after.unwrap().state, MemoryState::Deleted);
+    }
+
+    #[tokio::test]
+    async fn test_update_replaces_row_atomically() {
+        // Regression: update() used to delete-then-add, which could lose the
+        // row if interrupted between the two ops. It now upserts via
+        // merge_insert, so the row is always replaced in place — exactly one
+        // copy, never zero.
+        let (store, _dir) = setup().await;
+        let mem = make_memory("t-upd", "original content");
+        store.create(&mem, None).await.unwrap();
+        assert_eq!(store.list(100, 0).await.unwrap().len(), 1);
+
+        let mut fetched = store.get_by_id(&mem.id).await.unwrap().expect("created");
+        let v0 = fetched.version.unwrap_or(0);
+        fetched.content = "updated content".to_string();
+        fetched.l2_content = "updated content".to_string();
+        store.update(&fetched, None).await.unwrap();
+
+        // Exactly one row remains (no duplicate, no loss) with new content + bumped version.
+        let all = store.list(100, 0).await.unwrap();
+        assert_eq!(all.len(), 1, "update must not duplicate or drop the row");
+        let after = store
+            .get_by_id(&mem.id)
+            .await
+            .unwrap()
+            .expect("still present");
+        assert_eq!(after.content, "updated content");
+        assert!(after.version.unwrap_or(0) > v0, "version should increment");
+    }
+
+    #[tokio::test]
+    async fn test_update_upserts_when_row_absent() {
+        // merge_insert's when_not_matched_insert_all means update() inserts the
+        // row if it doesn't exist yet, rather than silently no-op'ing.
+        let (store, _dir) = setup().await;
+        let mem = make_memory("t-ups", "inserted via update");
+        store.update(&mem, None).await.unwrap();
+        let fetched = store.get_by_id(&mem.id).await.unwrap();
+        assert!(
+            fetched.is_some(),
+            "update should upsert when the row is absent"
+        );
+        assert_eq!(fetched.unwrap().content, "inserted via update");
     }
 
     #[tokio::test]
