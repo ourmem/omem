@@ -89,7 +89,9 @@ async fn main() {
         config: config.clone(),
         import_semaphore: Arc::new(tokio::sync::Semaphore::new(3)),
         reconcile_semaphore: Arc::new(tokio::sync::Semaphore::new(1)),
-        share_rate_limiter: Arc::new(omem_server::api::rate_limit::RateLimiter::new(config.share_rate_per_min)),
+        share_rate_limiter: Arc::new(omem_server::api::rate_limit::RateLimiter::new(
+            config.share_rate_per_min,
+        )),
     });
 
     let app = build_router(state);

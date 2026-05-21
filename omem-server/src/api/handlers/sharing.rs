@@ -2352,10 +2352,7 @@ mod tests {
         assert_eq!(prov.shared_from_memory, mem.id);
         assert_eq!(prov.source_version, Some(2));
 
-        let old = target_store
-            .get_by_id(&old_copy_id)
-            .await
-            .expect("get old");
+        let old = target_store.get_by_id(&old_copy_id).await.expect("get old");
         assert!(old.is_some());
         assert_eq!(
             old.unwrap().state,
