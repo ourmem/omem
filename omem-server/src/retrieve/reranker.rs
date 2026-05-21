@@ -128,6 +128,24 @@ impl Reranker {
 mod tests {
     use super::*;
 
+    // rustls 0.23 requires a process-global CryptoProvider to be installed
+    // before any TLS-aware reqwest::Client is constructed. The api tests
+    // install one in setup_app(), but retrieve::reranker tests don't go
+    // through that path — so under `cargo test --lib retrieve::reranker::`
+    // the tests panic with "no process-level CryptoProvider available."
+    // (They appear to pass under `cargo test --lib` because the api tests
+    // happen to run first in the same binary and install the provider as
+    // a side effect — order-dependent.)
+    //
+    // Guarded by Once so the multiple tests sharing this binary don't race.
+    fn install_crypto_provider() {
+        use std::sync::Once;
+        static INIT: Once = Once::new();
+        INIT.call_once(|| {
+            let _ = rustls::crypto::ring::default_provider().install_default();
+        });
+    }
+
     #[test]
     fn test_from_env_none_provider() {
         std::env::remove_var("OMEM_RERANK_PROVIDER");
@@ -145,6 +163,7 @@ mod tests {
 
     #[test]
     fn test_new_with_endpoint() {
+        install_crypto_provider();
         let reranker = Reranker::new_with_endpoint("jina", "http://localhost:8080/rerank", "key");
         assert_eq!(reranker.provider(), "jina");
         assert_eq!(reranker.endpoint, "http://localhost:8080/rerank");
@@ -152,6 +171,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rerank_empty_documents() {
+        install_crypto_provider();
         let reranker = Reranker::new_with_endpoint("jina", "http://localhost:1/rerank", "key");
         let result = reranker.rerank("query", &[]).await;
         assert!(result.is_ok());
@@ -160,6 +180,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rerank_timeout_returns_error() {
+        install_crypto_provider();
         let reranker = Reranker {
             provider: "jina".to_string(),
             endpoint: "http://192.0.2.1:1/rerank".to_string(),
