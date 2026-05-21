@@ -16,6 +16,10 @@ pub struct OmemConfig {
     pub embed_model: String,
     pub embed_dim: usize,
     pub embed_timeout_secs: u64,
+    /// When true, reading a stale shared copy auto-refreshes it from its source
+    /// before returning (lazy propagation). Opt-in; default false preserves the
+    /// existing snapshot-on-share behaviour.
+    pub auto_refresh_shares: bool,
 }
 
 impl Default for OmemConfig {
@@ -35,6 +39,7 @@ impl Default for OmemConfig {
             embed_model: String::new(),
             embed_dim: 1024,
             embed_timeout_secs: 10,
+            auto_refresh_shares: false,
         }
     }
 }
@@ -66,6 +71,15 @@ impl OmemConfig {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(defaults.embed_timeout_secs),
+            auto_refresh_shares: env::var("OMEM_AUTO_REFRESH_SHARES")
+                .ok()
+                .map(|v| {
+                    matches!(
+                        v.trim().to_ascii_lowercase().as_str(),
+                        "1" | "true" | "yes" | "on"
+                    )
+                })
+                .unwrap_or(defaults.auto_refresh_shares),
         }
     }
 

@@ -692,64 +692,25 @@ pub async fn delete_auto_share_rule(
     Ok(Json(serde_json::json!({"status": "deleted"})))
 }
 
-pub async fn reshare_memory(
-    State(state): State<Arc<AppState>>,
-    Extension(auth): Extension<AuthInfo>,
-    Path(id): Path<String>,
-    Json(body): Json<ReshareRequest>,
-) -> Result<impl IntoResponse, OmemError> {
-    let spaces = state
-        .space_store
-        .list_spaces_for_user(&auth.tenant_id)
-        .await?;
-
-    let mut old_copy: Option<Memory> = None;
-    let mut found_store = None;
-
-    if let Some(ref target_space_id) = body.target_space {
-        let space = spaces
-            .iter()
-            .find(|s| s.id == *target_space_id)
-            .ok_or_else(|| OmemError::NotFound(format!("space {target_space_id}")))?;
-        verify_space_write_access(space, &auth.tenant_id)?;
-
-        let store = state.store_manager.get_store(target_space_id).await?;
-        if let Some(mem) = store.get_by_id(&id).await? {
-            old_copy = Some(mem);
-            found_store = Some(store);
-        }
-    } else {
-        let personal_store = state
-            .store_manager
-            .get_store(&personal_space_id(&auth.tenant_id))
-            .await?;
-        if let Some(mem) = personal_store.get_by_id(&id).await? {
-            old_copy = Some(mem);
-            found_store = Some(personal_store);
-        }
-
-        if old_copy.is_none() {
-            for space in &spaces {
-                let store = state.store_manager.get_store(&space.id).await?;
-                if let Some(mem) = store.get_by_id(&id).await? {
-                    old_copy = Some(mem);
-                    found_store = Some(store);
-                    break;
-                }
-            }
-        }
-    }
-
-    let old_copy = old_copy.ok_or_else(|| OmemError::NotFound(format!("memory {id}")))?;
-    let target_store = found_store.unwrap();
-
+/// Refresh a single stale shared copy in place from its current source:
+/// re-copy the source content + vector into the copy's space, drop the old
+/// copy, and log a Reshare event. Returns the fresh copy. Shared by the
+/// explicit reshare endpoint and the auto-refresh-on-read path so both stay
+/// in lockstep.
+pub(crate) async fn refresh_shared_copy(
+    store_manager: &StoreManager,
+    space_store: &crate::store::SpaceStore,
+    old_copy: &Memory,
+    tenant_id: &str,
+    agent_id: &str,
+) -> Result<Memory, OmemError> {
     let provenance = old_copy
         .provenance
         .as_ref()
         .ok_or_else(|| OmemError::Validation("memory is not a shared copy".to_string()))?;
 
-    let source_store = state
-        .store_manager
+    let target_store = store_manager.get_store(&old_copy.space_id).await?;
+    let source_store = store_manager
         .get_store(&provenance.shared_from_space)
         .await?;
 
@@ -767,17 +728,10 @@ pub async fn reshare_memory(
         .get_vector_by_id(&provenance.shared_from_memory)
         .await?;
 
-    let agent_id = auth.agent_id.as_deref().unwrap_or("");
-    let new_copy = make_shared_copy(
-        &source_memory,
-        &old_copy.space_id,
-        &auth.tenant_id,
-        agent_id,
-    );
+    let new_copy = make_shared_copy(&source_memory, &old_copy.space_id, tenant_id, agent_id);
     target_store
         .create(&new_copy, source_vector.as_deref())
         .await?;
-
     target_store.soft_delete(&old_copy.id).await?;
 
     let event = make_sharing_event(
@@ -785,12 +739,66 @@ pub async fn reshare_memory(
         &new_copy.id,
         &provenance.shared_from_space,
         &old_copy.space_id,
-        &auth.tenant_id,
+        tenant_id,
         agent_id,
         &content_preview(&source_memory.content),
     );
-    state.space_store.record_sharing_event(&event).await?;
+    space_store.record_sharing_event(&event).await?;
 
+    Ok(new_copy)
+}
+
+pub async fn reshare_memory(
+    State(state): State<Arc<AppState>>,
+    Extension(auth): Extension<AuthInfo>,
+    Path(id): Path<String>,
+    Json(body): Json<ReshareRequest>,
+) -> Result<impl IntoResponse, OmemError> {
+    let spaces = state
+        .space_store
+        .list_spaces_for_user(&auth.tenant_id)
+        .await?;
+
+    let old_copy: Option<Memory> = if let Some(ref target_space_id) = body.target_space {
+        let space = spaces
+            .iter()
+            .find(|s| s.id == *target_space_id)
+            .ok_or_else(|| OmemError::NotFound(format!("space {target_space_id}")))?;
+        verify_space_write_access(space, &auth.tenant_id)?;
+
+        let store = state.store_manager.get_store(target_space_id).await?;
+        store.get_by_id(&id).await?
+    } else {
+        let personal_store = state
+            .store_manager
+            .get_store(&personal_space_id(&auth.tenant_id))
+            .await?;
+        match personal_store.get_by_id(&id).await? {
+            Some(mem) => Some(mem),
+            None => {
+                let mut found = None;
+                for space in &spaces {
+                    let store = state.store_manager.get_store(&space.id).await?;
+                    if let Some(mem) = store.get_by_id(&id).await? {
+                        found = Some(mem);
+                        break;
+                    }
+                }
+                found
+            }
+        }
+    };
+
+    let old_copy = old_copy.ok_or_else(|| OmemError::NotFound(format!("memory {id}")))?;
+    let agent_id = auth.agent_id.as_deref().unwrap_or("");
+    let new_copy = refresh_shared_copy(
+        &state.store_manager,
+        &state.space_store,
+        &old_copy,
+        &auth.tenant_id,
+        agent_id,
+    )
+    .await?;
     Ok((StatusCode::OK, Json(new_copy)))
 }
 
@@ -1838,6 +1846,89 @@ mod tests {
             old.unwrap().state,
             crate::domain::types::MemoryState::Deleted
         );
+    }
+
+    #[tokio::test]
+    async fn test_refresh_shared_copy_helper() {
+        use crate::api::handlers::memory::check_stale_for_memory;
+
+        let env = setup().await;
+        let source_store = env
+            .store_manager
+            .get_store("user-001")
+            .await
+            .expect("source store");
+
+        let mem = make_memory("v1 content", "user-001", "user-001");
+        source_store
+            .create(&mem, None)
+            .await
+            .expect("create source");
+
+        let team_space = make_space("team:backend", "user-001");
+        env.space_store
+            .create_space(&team_space)
+            .await
+            .expect("create space");
+
+        let target_store = env
+            .store_manager
+            .get_store("team:backend")
+            .await
+            .expect("target store");
+
+        let copy = make_shared_copy(&mem, "team:backend", "user-001", "agent-1");
+        let old_id = copy.id.clone();
+        target_store.create(&copy, None).await.expect("create copy");
+
+        // Source moves on → the copy is now stale.
+        let mut updated_source = mem.clone();
+        updated_source.content = "v2 content".to_string();
+        source_store
+            .update(&updated_source, None)
+            .await
+            .expect("update source");
+        assert!(
+            check_stale_for_memory(&copy, &env.store_manager)
+                .await
+                .expect("stale info")
+                .is_stale
+        );
+
+        // Refresh via the extracted helper (the auto-refresh-on-read primitive).
+        let fresh = refresh_shared_copy(
+            &env.store_manager,
+            &env.space_store,
+            &copy,
+            "user-001",
+            "agent-1",
+        )
+        .await
+        .expect("refresh");
+
+        assert_eq!(fresh.content, "v2 content");
+        assert_eq!(
+            fresh
+                .provenance
+                .as_ref()
+                .expect("provenance")
+                .source_version,
+            Some(2)
+        );
+        // The freshly written copy is no longer stale.
+        assert!(
+            !check_stale_for_memory(&fresh, &env.store_manager)
+                .await
+                .expect("stale info after")
+                .is_stale
+        );
+        // The old copy was soft-deleted.
+        let old = target_store
+            .get_by_id(&old_id)
+            .await
+            .expect("get old")
+            .expect("old exists");
+        assert_eq!(old.state, crate::domain::types::MemoryState::Deleted);
     }
 
     #[tokio::test]
