@@ -11,8 +11,8 @@ use crate::api::server::{normalize_space_id, personal_space_id, AppState};
 use crate::domain::error::OmemError;
 use crate::domain::memory::Memory;
 use crate::domain::space::{
-    AutoShareRule, MemberRole, Provenance, SharingAction, SharingEvent, Space, SpaceMember,
-    SpaceType,
+    AutoShareRule, MemberRole, PendingShare, Provenance, SharingAction, SharingEvent, Space,
+    SpaceMember, SpaceType,
 };
 use crate::domain::tenant::AuthInfo;
 use crate::store::StoreManager;
@@ -1357,7 +1357,19 @@ pub async fn check_auto_share(
                 continue;
             }
             if rule.require_approval {
-                continue;
+                let pending = PendingShare {
+                    id: Uuid::new_v4().to_string(),
+                    source_space: memory.space_id.clone(),
+                    source_memory: memory.id.clone(),
+                    target_space: space.id.clone(),
+                    rule_id: rule.id.clone(),
+                    requested_by_user: user_id.to_string(),
+                    requested_by_agent: agent_id.to_string(),
+                    content_preview: content_preview(&memory.content),
+                    created_at: chrono::Utc::now().to_rfc3339(),
+                };
+                space_store.record_pending_share(&pending).await?;
+                break;
             }
 
             let target_store = store_manager.get_store(&space.id).await?;
@@ -1383,6 +1395,117 @@ pub async fn check_auto_share(
     }
 
     Ok(shared_to)
+}
+
+/// Materialise an approved pending share: copy the source memory (content +
+/// vector) into the target space, record a Share event, and drop the queue
+/// entry. Returns the new copy. Kept free of `AppState` so it stays unit-testable.
+pub(crate) async fn apply_pending_share(
+    store_manager: &StoreManager,
+    space_store: &crate::store::SpaceStore,
+    pending: &PendingShare,
+) -> Result<Memory, OmemError> {
+    let source_store = store_manager.get_store(&pending.source_space).await?;
+    let source = source_store
+        .get_by_id(&pending.source_memory)
+        .await?
+        .ok_or_else(|| {
+            OmemError::NotFound(format!(
+                "source memory {} no longer exists",
+                pending.source_memory
+            ))
+        })?;
+    let source_vector = source_store
+        .get_vector_by_id(&pending.source_memory)
+        .await?;
+
+    let copy = make_shared_copy(
+        &source,
+        &pending.target_space,
+        &pending.requested_by_user,
+        &pending.requested_by_agent,
+    );
+    let target_store = store_manager.get_store(&pending.target_space).await?;
+    target_store.create(&copy, source_vector.as_deref()).await?;
+
+    let event = make_sharing_event(
+        SharingAction::Share,
+        &copy.id,
+        &pending.source_space,
+        &pending.target_space,
+        &pending.requested_by_user,
+        &pending.requested_by_agent,
+        &content_preview(&source.content),
+    );
+    space_store.record_sharing_event(&event).await?;
+    space_store.delete_pending_share(&pending.id).await?;
+
+    Ok(copy)
+}
+
+/// GET /v1/shares/pending
+///
+/// List shares awaiting approval in spaces the caller can write to. Poll this;
+/// there is no notification system.
+pub async fn list_pending_shares(
+    State(state): State<Arc<AppState>>,
+    Extension(auth): Extension<AuthInfo>,
+) -> Result<Json<Vec<PendingShare>>, OmemError> {
+    let spaces = state
+        .space_store
+        .list_spaces_for_user(&auth.tenant_id)
+        .await?;
+    let mut pending = Vec::new();
+    for space in &spaces {
+        if verify_space_write_access(space, &auth.tenant_id).is_ok() {
+            pending.extend(state.space_store.list_pending_shares(&space.id).await?);
+        }
+    }
+    Ok(Json(pending))
+}
+
+/// POST /v1/shares/pending/{id}/approve
+pub async fn approve_pending_share(
+    State(state): State<Arc<AppState>>,
+    Extension(auth): Extension<AuthInfo>,
+    Path(id): Path<String>,
+) -> Result<Json<Memory>, OmemError> {
+    let pending = state
+        .space_store
+        .get_pending_share(&id)
+        .await?
+        .ok_or_else(|| OmemError::NotFound(format!("pending share {id}")))?;
+    let space = state
+        .space_store
+        .get_space(&pending.target_space)
+        .await?
+        .ok_or_else(|| OmemError::NotFound(format!("space {}", pending.target_space)))?;
+    verify_space_write_access(&space, &auth.tenant_id)?;
+
+    let copy = apply_pending_share(&state.store_manager, &state.space_store, &pending).await?;
+    Ok(Json(copy))
+}
+
+/// POST /v1/shares/pending/{id}/reject
+pub async fn reject_pending_share(
+    State(state): State<Arc<AppState>>,
+    Extension(auth): Extension<AuthInfo>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, OmemError> {
+    let pending = state
+        .space_store
+        .get_pending_share(&id)
+        .await?
+        .ok_or_else(|| OmemError::NotFound(format!("pending share {id}")))?;
+    let space = state
+        .space_store
+        .get_space(&pending.target_space)
+        .await?
+        .ok_or_else(|| OmemError::NotFound(format!("space {}", pending.target_space)))?;
+    verify_space_write_access(&space, &auth.tenant_id)?;
+
+    state.space_store.delete_pending_share(&id).await?;
+    Ok(Json(serde_json::json!({ "rejected": true, "id": id })))
 }
 
 // ── Tests ────────────────────────────────────────────────────────────
@@ -1592,6 +1715,93 @@ mod tests {
 
         let team_list = target_store.list(100, 0, false).await.expect("list");
         assert_eq!(team_list.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_pending_share_approval_flow() {
+        let env = setup().await;
+        let dim = env.store_manager.vector_dim() as usize;
+
+        // Team space with an auto-share rule that REQUIRES approval.
+        let mut team_space = make_space("team:backend", "user-001");
+        team_space.auto_share_rules.push(AutoShareRule {
+            id: "rule-1".to_string(),
+            source_space: "user-001".to_string(),
+            categories: vec!["preferences".to_string()],
+            tags: Vec::new(),
+            min_importance: 0.0,
+            require_approval: true,
+            created_at: "2025-01-01T00:00:00Z".to_string(),
+        });
+        env.space_store
+            .create_space(&team_space)
+            .await
+            .expect("create space");
+
+        // Source memory (with a vector) that matches the rule.
+        let source_store = env
+            .store_manager
+            .get_store("user-001")
+            .await
+            .expect("source store");
+        let mem = make_memory("prefers tabs over spaces", "user-001", "user-001");
+        source_store
+            .create(&mem, Some(&vec![0.3f32; dim]))
+            .await
+            .expect("create source");
+
+        // require_approval => ENQUEUE, do not auto-share.
+        let shared_to = check_auto_share(
+            &mem,
+            &env.space_store,
+            &env.store_manager,
+            "user-001",
+            "agent-1",
+        )
+        .await
+        .expect("auto share");
+        assert!(shared_to.is_empty(), "require_approval must not auto-share");
+
+        let team_store = env
+            .store_manager
+            .get_store("team:backend")
+            .await
+            .expect("team store");
+        assert_eq!(
+            team_store.list_all_active().await.expect("list").len(),
+            0,
+            "nothing shared before approval"
+        );
+
+        let pending = env
+            .space_store
+            .list_pending_shares("team:backend")
+            .await
+            .expect("list pending");
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].source_memory, mem.id);
+        assert_eq!(pending[0].target_space, "team:backend");
+
+        // Approve => copy materialises (with vector) and the queue drains.
+        let copy = apply_pending_share(&env.store_manager, &env.space_store, &pending[0])
+            .await
+            .expect("apply");
+        assert_eq!(copy.content, "prefers tabs over spaces");
+
+        let active = team_store.list_all_active().await.expect("list");
+        assert_eq!(active.len(), 1);
+        let v = team_store
+            .get_vector_by_id(&active[0].id)
+            .await
+            .expect("vec")
+            .expect("vector present after approval");
+        assert!(v.iter().any(|x| *x != 0.0));
+        assert!(env
+            .space_store
+            .list_pending_shares("team:backend")
+            .await
+            .expect("list")
+            .is_empty());
     }
 
     #[tokio::test]

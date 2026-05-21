@@ -131,6 +131,22 @@ pub struct SharingEvent {
     pub timestamp: String,
 }
 
+/// A share that matched an auto-share rule with `require_approval = true`,
+/// awaiting a human decision. Held in a queue (no notifications) until an
+/// approver with write access to `target_space` approves or rejects it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PendingShare {
+    pub id: String,
+    pub source_space: String,
+    pub source_memory: String,
+    pub target_space: String,
+    pub rule_id: String,
+    pub requested_by_user: String,
+    pub requested_by_agent: String,
+    pub content_preview: String,
+    pub created_at: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
