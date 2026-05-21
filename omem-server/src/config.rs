@@ -16,6 +16,10 @@ pub struct OmemConfig {
     pub embed_model: String,
     pub embed_dim: usize,
     pub embed_timeout_secs: u64,
+    /// Max memory IDs accepted per batch-share / org-publish call. 0 = unlimited.
+    pub batch_share_max: usize,
+    /// Max memories processed per share-all / share-all-to-user call. 0 = unlimited.
+    pub share_all_max: usize,
 }
 
 impl Default for OmemConfig {
@@ -35,6 +39,8 @@ impl Default for OmemConfig {
             embed_model: String::new(),
             embed_dim: 1024,
             embed_timeout_secs: 10,
+            batch_share_max: 500,
+            share_all_max: 5000,
         }
     }
 }
@@ -66,6 +72,14 @@ impl OmemConfig {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(defaults.embed_timeout_secs),
+            batch_share_max: env::var("OMEM_BATCH_SHARE_MAX")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(defaults.batch_share_max),
+            share_all_max: env::var("OMEM_SHARE_ALL_MAX")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(defaults.share_all_max),
         }
     }
 
@@ -91,5 +105,8 @@ mod tests {
         assert_eq!(config.embed_provider, "noop");
         assert_eq!(config.llm_model, "gpt-4o-mini");
         assert_eq!(config.log_level, "info");
+        // Sharing caps default to the historical hardcoded values (0 = unlimited).
+        assert_eq!(config.batch_share_max, 500);
+        assert_eq!(config.share_all_max, 5000);
     }
 }

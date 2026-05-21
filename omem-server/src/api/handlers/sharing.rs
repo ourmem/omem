@@ -484,10 +484,11 @@ pub async fn batch_share(
             "memory_ids cannot be empty".to_string(),
         ));
     }
-    if body.memory_ids.len() > 500 {
-        return Err(OmemError::Validation(
-            "batch_share limited to 500 memories".to_string(),
-        ));
+    if state.config.batch_share_max > 0 && body.memory_ids.len() > state.config.batch_share_max {
+        return Err(OmemError::Validation(format!(
+            "batch_share limited to {} memories per call (set OMEM_BATCH_SHARE_MAX=0 to disable)",
+            state.config.batch_share_max
+        )));
     }
     if body.target_space.is_empty() {
         return Err(OmemError::Validation(
@@ -909,10 +910,11 @@ pub async fn share_all(
         .collect();
 
     let total = filtered_ids.len();
-    if total > 5000 {
-        return Err(OmemError::Validation(
-            "share-all limited to 5000 memories. Apply stricter filters.".to_string(),
-        ));
+    if state.config.share_all_max > 0 && total > state.config.share_all_max {
+        return Err(OmemError::Validation(format!(
+            "share-all limited to {} memories per call (set OMEM_SHARE_ALL_MAX=0 to disable). Apply stricter filters.",
+            state.config.share_all_max
+        )));
     }
 
     let target_store = state.store_manager.get_store(&target_space.id).await?;
@@ -1075,10 +1077,11 @@ pub async fn share_all_to_user(
         .collect();
 
     let total = filtered_ids.len();
-    if total > 5000 {
-        return Err(OmemError::Validation(
-            "share-all-to-user limited to 5000 memories. Apply stricter filters.".to_string(),
-        ));
+    if state.config.share_all_max > 0 && total > state.config.share_all_max {
+        return Err(OmemError::Validation(format!(
+            "share-all-to-user limited to {} memories per call (set OMEM_SHARE_ALL_MAX=0 to disable). Apply stricter filters.",
+            state.config.share_all_max
+        )));
     }
 
     let target_store = state.store_manager.get_store(&space_id).await?;
@@ -1244,10 +1247,11 @@ pub async fn org_publish(
     let mut failed = 0;
 
     if let Some(memory_ids) = &body.memory_ids {
-        if memory_ids.len() > 500 {
-            return Err(OmemError::Validation(
-                "org/publish limited to 500 memories per call".to_string(),
-            ));
+        if state.config.batch_share_max > 0 && memory_ids.len() > state.config.batch_share_max {
+            return Err(OmemError::Validation(format!(
+                "org/publish limited to {} memories per call (set OMEM_BATCH_SHARE_MAX=0 to disable)",
+                state.config.batch_share_max
+            )));
         }
 
         let source_store = state
