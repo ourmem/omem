@@ -578,6 +578,19 @@ impl LanceStore {
         mem.version = Some(mem.version.unwrap_or(0) + 1);
         mem.updated_at = chrono::Utc::now().to_rfc3339();
 
+        // Preserve the existing embedding on metadata-only updates. When the
+        // caller passes `vector == None` (a state/tags/supersede change with no
+        // content edit), `memory_to_batch` writes a zero vector, which combined
+        // with `merge_insert.when_matched_update_all()` silently wipes the row's
+        // embedding and makes it invisible to vector search. Reuse the stored
+        // vector in that case.
+        let preserved: Option<Vec<f32>> = if vector.is_none() {
+            self.get_vector_by_id(&mem.id).await?
+        } else {
+            None
+        };
+        let vector = vector.or(preserved.as_deref());
+
         let table = self.open_table().await?;
         let batch = self.memory_to_batch(&mem, vector)?;
         let reader = RecordBatchIterator::new(vec![Ok(batch)], self.schema());
@@ -1048,6 +1061,43 @@ mod tests {
 
     fn make_memory(tenant: &str, content: &str) -> Memory {
         Memory::new(content, Category::Preferences, MemoryType::Insight, tenant)
+    }
+
+    #[tokio::test]
+    async fn test_metadata_only_update_preserves_vector() {
+        // Regression: a metadata-only update (caller passes vector = None) must
+        // NOT wipe the row's embedding. Previously `memory_to_batch` wrote a
+        // zero vector for the None case and `merge_insert.when_matched_update_all`
+        // committed it over the real embedding, making the memory invisible to
+        // vector search.
+        let (store, _dir) = setup().await;
+        let mut mem = make_memory("t-001", "memory with an embedding");
+        let mut v = vec![0.0f32; DEFAULT_VECTOR_DIM as usize];
+        v[0] = 0.5;
+        v[1] = 0.25;
+        store.create(&mem, Some(&v)).await.unwrap();
+
+        let stored = store
+            .get_vector_by_id(&mem.id)
+            .await
+            .unwrap()
+            .expect("vector present after create");
+        assert_eq!(stored, v);
+
+        // Metadata-only change: edit tags, request no re-embed (vector = None).
+        mem.tags = vec!["touched".to_string()];
+        store.update(&mem, None).await.unwrap();
+
+        let after = store
+            .get_vector_by_id(&mem.id)
+            .await
+            .unwrap()
+            .expect("vector present after metadata-only update");
+        assert_eq!(after, v, "metadata-only update wiped the embedding");
+        assert!(
+            after.iter().any(|&x| x != 0.0),
+            "embedding was zeroed by a metadata-only update"
+        );
     }
 
     #[tokio::test]
