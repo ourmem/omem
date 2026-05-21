@@ -34,7 +34,7 @@ impl AutoForgetter {
     }
 
     pub async fn cleanup_expired(&self) -> Result<usize, OmemError> {
-        let memories = self.store.list(10000, 0).await?;
+        let memories = self.store.list(10000, 0, false).await?;
         let now = chrono::Utc::now();
         let mut deleted_count = 0;
 
@@ -53,7 +53,7 @@ impl AutoForgetter {
     }
 
     pub async fn archive_superseded(&self, max_age_days: u32) -> Result<usize, OmemError> {
-        let memories = self.store.list(10000, 0).await?;
+        let memories = self.store.list(10000, 0, false).await?;
         let now = chrono::Utc::now();
         let max_age = chrono::TimeDelta::try_days(max_age_days as i64)
             .unwrap_or_else(chrono::TimeDelta::zero);
@@ -183,7 +183,7 @@ mod tests {
             "only the expired 'today' memory (5 days old) should be deleted"
         );
 
-        let remaining = store.list(100, 0).await.expect("list");
+        let remaining = store.list(100, 0, false).await.expect("list");
         assert_eq!(remaining.len(), 2);
     }
 

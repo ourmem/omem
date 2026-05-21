@@ -61,6 +61,11 @@ pub struct CreateMemoryBody {
     pub tags: Option<Vec<String>>,
     pub source: Option<String>,
     pub memory_type: Option<String>,
+    /// IDs of memories to mark superseded by this one. Used when consolidating
+    /// fragmented memories (e.g., chunked old-embedder content) into a single
+    /// new memory in one atomic call.
+    #[serde(default)]
+    pub replaces: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -84,6 +89,8 @@ pub struct SearchQuery {
     pub agent_id: Option<String>,
     #[serde(default)]
     pub check_stale: bool,
+    #[serde(default)]
+    pub include_superseded: bool,
 }
 
 fn default_limit() -> usize {
@@ -105,6 +112,8 @@ pub struct ListQuery {
     pub sort: String,
     #[serde(default = "default_order")]
     pub order: String,
+    #[serde(default)]
+    pub include_superseded: bool,
 }
 
 fn default_sort() -> String {
@@ -252,7 +261,16 @@ pub async fn create_memory(
         .map_err(|e| map_embed_error(content_len, e))?;
     let vector = vectors.into_iter().next();
 
-    store.create(&memory, vector.as_deref()).await?;
+    match body.replaces.as_deref() {
+        Some(ids) if !ids.is_empty() => {
+            store
+                .supersede_batch(&memory, vector.as_deref(), ids)
+                .await?;
+        }
+        _ => {
+            store.create(&memory, vector.as_deref()).await?;
+        }
+    }
 
     // Fire-and-forget: check auto-share rules for the newly created memory
     {
@@ -327,6 +345,7 @@ pub async fn search_memories(
                 .map(|t| t.split(',').map(|s| s.trim().to_string()).collect()),
             source_filter: params.source.clone(),
             agent_id_filter: params.agent_id.clone(),
+            include_superseded: params.include_superseded,
         };
 
         let retrieval_pipeline = RetrievalPipeline::new(store);
@@ -388,6 +407,7 @@ pub async fn search_memories(
         });
         let source_filter = params.source.clone();
         let agent_id_filter = params.agent_id.clone();
+        let include_superseded = params.include_superseded;
         let store = acc.store.clone();
         let space_id = acc.space_id.clone();
         let weight = acc.weight;
@@ -404,6 +424,7 @@ pub async fn search_memories(
                 tags_filter,
                 source_filter,
                 agent_id_filter,
+                include_superseded,
             };
             let pipeline = RetrievalPipeline::new(store);
             let result = pipeline.search(&request).await;
@@ -648,6 +669,7 @@ pub async fn list_memories(
             .map(|t| t.split(',').map(|s| s.trim().to_string()).collect()),
         memory_type: params.memory_type,
         state: params.state,
+        include_superseded: params.include_superseded,
         sort: params.sort,
         order: params.order,
     };

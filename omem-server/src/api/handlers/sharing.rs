@@ -1590,7 +1590,7 @@ mod tests {
             target_store.create(&copy, None).await.expect("batch share");
         }
 
-        let team_list = target_store.list(100, 0).await.expect("list");
+        let team_list = target_store.list(100, 0, false).await.expect("list");
         assert_eq!(team_list.len(), 3);
     }
 
@@ -1637,7 +1637,7 @@ mod tests {
             .get_store("team:backend")
             .await
             .expect("team store");
-        let team_list = team_store.list(100, 0).await.expect("list");
+        let team_list = team_store.list(100, 0, false).await.expect("list");
         assert_eq!(team_list.len(), 1);
         assert_eq!(team_list[0].content, "prefers vim keybindings");
     }
@@ -1906,7 +1906,7 @@ mod tests {
             .expect("share single");
         }
 
-        let team_list = target_store.list(100, 0).await.expect("list");
+        let team_list = target_store.list(100, 0, false).await.expect("list");
         assert_eq!(team_list.len(), 1);
         assert!(team_list[0].content.contains("dark mode"));
     }

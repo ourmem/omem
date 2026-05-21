@@ -8,7 +8,7 @@ export function registerTools(server: McpServer, client: OmemClient): void {
     {
       title: "Store Memory",
       description:
-        "Store a new memory in omem. Use this to save important information, decisions, preferences, or context for future reference.",
+        "Store a new memory in omem. Use this to save important information, decisions, preferences, or context for future reference. Pass `replaces` to atomically supersede one or more existing memories with this new consolidated one (e.g. when merging chunked fragments into a single record).",
       inputSchema: {
         content: z.string().describe("The content to remember"),
         tags: z
@@ -19,14 +19,21 @@ export function registerTools(server: McpServer, client: OmemClient): void {
           .string()
           .optional()
           .describe("Source identifier (e.g. 'chat', 'code-review')"),
+        replaces: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Memory IDs to mark as superseded by this new one. Use when consolidating multiple fragments into a single memory. Default search hides superseded entries; get-by-id still returns them for history.",
+          ),
       },
     },
-    async ({ content, tags, source }) => {
+    async ({ content, tags, source, replaces }) => {
       try {
         const memory = await client.createMemory(
           content,
           tags ?? [],
           source ?? "mcp",
+          replaces,
         );
         return {
           content: [

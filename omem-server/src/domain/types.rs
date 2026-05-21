@@ -45,6 +45,7 @@ pub enum MemoryState {
     Active,
     Archived,
     Deleted,
+    Superseded,
 }
 
 impl fmt::Display for MemoryState {
@@ -53,6 +54,7 @@ impl fmt::Display for MemoryState {
             Self::Active => write!(f, "active"),
             Self::Archived => write!(f, "archived"),
             Self::Deleted => write!(f, "deleted"),
+            Self::Superseded => write!(f, "superseded"),
         }
     }
 }
@@ -65,6 +67,7 @@ impl FromStr for MemoryState {
             "active" => Ok(Self::Active),
             "archived" => Ok(Self::Archived),
             "deleted" => Ok(Self::Deleted),
+            "superseded" => Ok(Self::Superseded),
             _ => Err(format!("unknown memory state: {s}")),
         }
     }

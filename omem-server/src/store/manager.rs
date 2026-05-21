@@ -221,11 +221,11 @@ mod tests {
         let mem_b = make_memory("tenant-B", "secret data for B");
         store_b.create(&mem_b, None).await.expect("create in B");
 
-        let list_a = store_a.list(100, 0).await.expect("list A");
+        let list_a = store_a.list(100, 0, false).await.expect("list A");
         assert_eq!(list_a.len(), 1);
         assert_eq!(list_a[0].content, "secret data for A");
 
-        let list_b = store_b.list(100, 0).await.expect("list B");
+        let list_b = store_b.list(100, 0, false).await.expect("list B");
         assert_eq!(list_b.len(), 1);
         assert_eq!(list_b[0].content, "secret data for B");
     }
