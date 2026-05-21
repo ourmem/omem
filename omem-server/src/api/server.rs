@@ -16,6 +16,7 @@ pub struct AppState {
     pub config: OmemConfig,
     pub import_semaphore: Arc<Semaphore>,
     pub reconcile_semaphore: Arc<Semaphore>,
+    pub share_rate_limiter: Arc<crate::api::rate_limit::RateLimiter>,
 }
 
 /// Map tenant_id to their personal Space ID.

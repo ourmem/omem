@@ -295,6 +295,7 @@ pub async fn share_memory(
     Path(id): Path<String>,
     Json(body): Json<ShareRequest>,
 ) -> Result<impl IntoResponse, OmemError> {
+    state.share_rate_limiter.check(&auth.tenant_id)?;
     if body.target_space.is_empty() {
         return Err(OmemError::Validation(
             "target_space is required".to_string(),
@@ -353,6 +354,7 @@ pub async fn pull_memory(
     Path(id): Path<String>,
     Json(body): Json<PullRequest>,
 ) -> Result<impl IntoResponse, OmemError> {
+    state.share_rate_limiter.check(&auth.tenant_id)?;
     if body.source_space.is_empty() {
         return Err(OmemError::Validation(
             "source_space is required".to_string(),
@@ -479,6 +481,7 @@ pub async fn batch_share(
     Extension(auth): Extension<AuthInfo>,
     Json(body): Json<BatchShareRequest>,
 ) -> Result<impl IntoResponse, OmemError> {
+    state.share_rate_limiter.check(&auth.tenant_id)?;
     if body.memory_ids.is_empty() {
         return Err(OmemError::Validation(
             "memory_ids cannot be empty".to_string(),
@@ -698,6 +701,7 @@ pub async fn reshare_memory(
     Path(id): Path<String>,
     Json(body): Json<ReshareRequest>,
 ) -> Result<impl IntoResponse, OmemError> {
+    state.share_rate_limiter.check(&auth.tenant_id)?;
     let spaces = state
         .space_store
         .list_spaces_for_user(&auth.tenant_id)
@@ -882,6 +886,7 @@ pub async fn share_all(
     Extension(auth): Extension<AuthInfo>,
     Json(body): Json<ShareAllRequest>,
 ) -> Result<impl IntoResponse, OmemError> {
+    state.share_rate_limiter.check(&auth.tenant_id)?;
     let target_space_id = normalize_space_id(&body.target_space);
     if target_space_id.is_empty() {
         return Err(OmemError::Validation(
@@ -982,6 +987,7 @@ pub async fn share_to_user(
     Path(id): Path<String>,
     Json(body): Json<ShareToUserRequest>,
 ) -> Result<impl IntoResponse, OmemError> {
+    state.share_rate_limiter.check(&auth.tenant_id)?;
     if body.target_user.is_empty() {
         return Err(OmemError::Validation("target_user is required".to_string()));
     }
@@ -1051,6 +1057,7 @@ pub async fn share_all_to_user(
     Extension(auth): Extension<AuthInfo>,
     Json(body): Json<ShareAllToUserRequest>,
 ) -> Result<Json<ShareAllToUserResponse>, OmemError> {
+    state.share_rate_limiter.check(&auth.tenant_id)?;
     if body.target_user.is_empty() {
         return Err(OmemError::Validation("target_user is required".to_string()));
     }
@@ -1214,6 +1221,7 @@ pub async fn org_publish(
     Path(org_id): Path<String>,
     Json(body): Json<OrgPublishRequest>,
 ) -> Result<Json<OrgPublishResponse>, OmemError> {
+    state.share_rate_limiter.check(&auth.tenant_id)?;
     let org_id = normalize_space_id(&org_id);
     let mut space = state
         .space_store

@@ -16,6 +16,8 @@ pub struct OmemConfig {
     pub embed_model: String,
     pub embed_dim: usize,
     pub embed_timeout_secs: u64,
+    /// Per-user sharing rate limit (operations per minute). 0 = disabled.
+    pub share_rate_per_min: u32,
 }
 
 impl Default for OmemConfig {
@@ -35,6 +37,7 @@ impl Default for OmemConfig {
             embed_model: String::new(),
             embed_dim: 1024,
             embed_timeout_secs: 10,
+            share_rate_per_min: 0,
         }
     }
 }
@@ -66,6 +69,10 @@ impl OmemConfig {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(defaults.embed_timeout_secs),
+            share_rate_per_min: env::var("OMEM_SHARE_RATE_PER_MIN")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(defaults.share_rate_per_min),
         }
     }
 

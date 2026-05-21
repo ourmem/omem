@@ -1,6 +1,7 @@
 pub mod error;
 pub mod handlers;
 pub mod middleware;
+pub mod rate_limit;
 pub mod router;
 pub mod server;
 
@@ -86,6 +87,7 @@ mod tests {
             config: OmemConfig::default(),
             import_semaphore: Arc::new(tokio::sync::Semaphore::new(3)),
             reconcile_semaphore: Arc::new(tokio::sync::Semaphore::new(1)),
+            share_rate_limiter: Arc::new(crate::api::rate_limit::RateLimiter::new(0)),
         });
 
         (build_router(state), dir)

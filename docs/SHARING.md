@@ -828,9 +828,9 @@ LanceDB doesn't support cross-database vector queries. Each space has its own ve
 
 `POST /v1/memories/batch-share` accepts at most 500 memory IDs per call. Requests exceeding this limit return 400 Bad Request.
 
-### No rate limiting on sharing
+### Rate limiting on sharing (opt-in)
 
-There is no per-user or per-space rate limit on sharing operations. A user with write access can share thousands of memories in rapid succession. Rate limiting is a separate hardening task.
+Per-user rate limiting on sharing operations is available via `OMEM_SHARE_RATE_PER_MIN` (operations per minute per user; **default 0 = disabled**). When enabled, each call to a sharing endpoint (`share`, `pull`, `reshare`, `batch-share`, `share-all`, `share-to-user`, `share-all-to-user`, `org/publish`) consumes one token from the caller's bucket; an empty bucket returns `429 Too Many Requests`. Tokens refill continuously at `OMEM_SHARE_RATE_PER_MIN / 60` per second, so bursts up to the per-minute value are allowed. State is process-local; a multi-replica deployment would need a shared store.
 
 ### Organization spaces are read-only for non-admins
 
