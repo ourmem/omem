@@ -20,6 +20,10 @@ pub struct OmemConfig {
     pub batch_share_max: usize,
     /// Max memories processed per share-all / share-all-to-user call. 0 = unlimited.
     pub share_all_max: usize,
+    /// Per-user rate limit for sharing operations (requests per minute). 0 = disabled.
+    pub share_rate_per_min: u32,
+    /// When true, stale shared copies are auto-refreshed on read (get_memory).
+    pub auto_refresh_shares: bool,
 }
 
 impl Default for OmemConfig {
@@ -41,6 +45,8 @@ impl Default for OmemConfig {
             embed_timeout_secs: 10,
             batch_share_max: 500,
             share_all_max: 5000,
+            share_rate_per_min: 0,
+            auto_refresh_shares: false,
         }
     }
 }
@@ -80,6 +86,19 @@ impl OmemConfig {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(defaults.share_all_max),
+            share_rate_per_min: env::var("OMEM_SHARE_RATE_PER_MIN")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(defaults.share_rate_per_min),
+            auto_refresh_shares: env::var("OMEM_AUTO_REFRESH_SHARES")
+                .ok()
+                .map(|v| {
+                    matches!(
+                        v.trim().to_ascii_lowercase().as_str(),
+                        "1" | "true" | "yes" | "on"
+                    )
+                })
+                .unwrap_or(defaults.auto_refresh_shares),
         }
     }
 

@@ -295,6 +295,7 @@ pub async fn share_memory(
     Path(id): Path<String>,
     Json(body): Json<ShareRequest>,
 ) -> Result<impl IntoResponse, OmemError> {
+    state.share_rate_limiter.check(&auth.tenant_id)?;
     if body.target_space.is_empty() {
         return Err(OmemError::Validation(
             "target_space is required".to_string(),
@@ -353,6 +354,7 @@ pub async fn pull_memory(
     Path(id): Path<String>,
     Json(body): Json<PullRequest>,
 ) -> Result<impl IntoResponse, OmemError> {
+    state.share_rate_limiter.check(&auth.tenant_id)?;
     if body.source_space.is_empty() {
         return Err(OmemError::Validation(
             "source_space is required".to_string(),
@@ -479,6 +481,7 @@ pub async fn batch_share(
     Extension(auth): Extension<AuthInfo>,
     Json(body): Json<BatchShareRequest>,
 ) -> Result<impl IntoResponse, OmemError> {
+    state.share_rate_limiter.check(&auth.tenant_id)?;
     if body.memory_ids.is_empty() {
         return Err(OmemError::Validation(
             "memory_ids cannot be empty".to_string(),
@@ -693,19 +696,70 @@ pub async fn delete_auto_share_rule(
     Ok(Json(serde_json::json!({"status": "deleted"})))
 }
 
+pub(crate) async fn refresh_shared_copy(
+    store_manager: &StoreManager,
+    space_store: &crate::store::SpaceStore,
+    old_copy: &Memory,
+    tenant_id: &str,
+    agent_id: &str,
+) -> Result<Memory, OmemError> {
+    let provenance = old_copy
+        .provenance
+        .as_ref()
+        .ok_or_else(|| OmemError::Validation("memory is not a shared copy".to_string()))?;
+
+    let target_store = store_manager.get_store(&old_copy.space_id).await?;
+    let source_store = store_manager
+        .get_store(&provenance.shared_from_space)
+        .await?;
+
+    let source_memory = source_store
+        .get_by_id(&provenance.shared_from_memory)
+        .await?
+        .ok_or_else(|| {
+            OmemError::NotFound(format!(
+                "source memory {} deleted",
+                provenance.shared_from_memory
+            ))
+        })?;
+
+    let source_vector = source_store
+        .get_vector_by_id(&provenance.shared_from_memory)
+        .await?;
+
+    let new_copy = make_shared_copy(&source_memory, &old_copy.space_id, tenant_id, agent_id);
+    target_store
+        .create(&new_copy, source_vector.as_deref())
+        .await?;
+    target_store.soft_delete(&old_copy.id).await?;
+
+    let event = make_sharing_event(
+        SharingAction::Reshare,
+        &new_copy.id,
+        &provenance.shared_from_space,
+        &old_copy.space_id,
+        tenant_id,
+        agent_id,
+        &content_preview(&source_memory.content),
+    );
+    space_store.record_sharing_event(&event).await?;
+
+    Ok(new_copy)
+}
+
 pub async fn reshare_memory(
     State(state): State<Arc<AppState>>,
     Extension(auth): Extension<AuthInfo>,
     Path(id): Path<String>,
     Json(body): Json<ReshareRequest>,
 ) -> Result<impl IntoResponse, OmemError> {
+    state.share_rate_limiter.check(&auth.tenant_id)?;
     let spaces = state
         .space_store
         .list_spaces_for_user(&auth.tenant_id)
         .await?;
 
     let mut old_copy: Option<Memory> = None;
-    let mut found_store = None;
 
     if let Some(ref target_space_id) = body.target_space {
         let space = spaces
@@ -717,7 +771,6 @@ pub async fn reshare_memory(
         let store = state.store_manager.get_store(target_space_id).await?;
         if let Some(mem) = store.get_by_id(&id).await? {
             old_copy = Some(mem);
-            found_store = Some(store);
         }
     } else {
         let personal_store = state
@@ -726,7 +779,6 @@ pub async fn reshare_memory(
             .await?;
         if let Some(mem) = personal_store.get_by_id(&id).await? {
             old_copy = Some(mem);
-            found_store = Some(personal_store);
         }
 
         if old_copy.is_none() {
@@ -734,7 +786,6 @@ pub async fn reshare_memory(
                 let store = state.store_manager.get_store(&space.id).await?;
                 if let Some(mem) = store.get_by_id(&id).await? {
                     old_copy = Some(mem);
-                    found_store = Some(store);
                     break;
                 }
             }
@@ -742,55 +793,16 @@ pub async fn reshare_memory(
     }
 
     let old_copy = old_copy.ok_or_else(|| OmemError::NotFound(format!("memory {id}")))?;
-    let target_store = found_store.unwrap();
-
-    let provenance = old_copy
-        .provenance
-        .as_ref()
-        .ok_or_else(|| OmemError::Validation("memory is not a shared copy".to_string()))?;
-
-    let source_store = state
-        .store_manager
-        .get_store(&provenance.shared_from_space)
-        .await?;
-
-    let source_memory = source_store
-        .get_by_id(&provenance.shared_from_memory)
-        .await?
-        .ok_or_else(|| {
-            OmemError::NotFound(format!(
-                "source memory {} no longer exists",
-                provenance.shared_from_memory
-            ))
-        })?;
-
-    let source_vector = source_store
-        .get_vector_by_id(&provenance.shared_from_memory)
-        .await?;
-
     let agent_id = auth.agent_id.as_deref().unwrap_or("");
-    let new_copy = make_shared_copy(
-        &source_memory,
-        &old_copy.space_id,
+
+    let new_copy = refresh_shared_copy(
+        &state.store_manager,
+        &state.space_store,
+        &old_copy,
         &auth.tenant_id,
         agent_id,
-    );
-    target_store
-        .create(&new_copy, source_vector.as_deref())
-        .await?;
-
-    target_store.soft_delete(&old_copy.id).await?;
-
-    let event = make_sharing_event(
-        SharingAction::Reshare,
-        &new_copy.id,
-        &provenance.shared_from_space,
-        &old_copy.space_id,
-        &auth.tenant_id,
-        agent_id,
-        &content_preview(&source_memory.content),
-    );
-    state.space_store.record_sharing_event(&event).await?;
+    )
+    .await?;
 
     Ok((StatusCode::OK, Json(new_copy)))
 }
@@ -883,6 +895,7 @@ pub async fn share_all(
     Extension(auth): Extension<AuthInfo>,
     Json(body): Json<ShareAllRequest>,
 ) -> Result<impl IntoResponse, OmemError> {
+    state.share_rate_limiter.check(&auth.tenant_id)?;
     let target_space_id = normalize_space_id(&body.target_space);
     if target_space_id.is_empty() {
         return Err(OmemError::Validation(
@@ -984,6 +997,7 @@ pub async fn share_to_user(
     Path(id): Path<String>,
     Json(body): Json<ShareToUserRequest>,
 ) -> Result<impl IntoResponse, OmemError> {
+    state.share_rate_limiter.check(&auth.tenant_id)?;
     if body.target_user.is_empty() {
         return Err(OmemError::Validation("target_user is required".to_string()));
     }
@@ -1053,6 +1067,7 @@ pub async fn share_all_to_user(
     Extension(auth): Extension<AuthInfo>,
     Json(body): Json<ShareAllToUserRequest>,
 ) -> Result<Json<ShareAllToUserResponse>, OmemError> {
+    state.share_rate_limiter.check(&auth.tenant_id)?;
     if body.target_user.is_empty() {
         return Err(OmemError::Validation("target_user is required".to_string()));
     }
@@ -1217,6 +1232,7 @@ pub async fn org_publish(
     Path(org_id): Path<String>,
     Json(body): Json<OrgPublishRequest>,
 ) -> Result<Json<OrgPublishResponse>, OmemError> {
+    state.share_rate_limiter.check(&auth.tenant_id)?;
     let org_id = normalize_space_id(&org_id);
     let mut space = state
         .space_store
@@ -2282,5 +2298,68 @@ mod tests {
         assert_eq!(unknown, "custom:something");
 
         let _ = now;
+    }
+
+    #[tokio::test]
+    async fn test_refresh_shared_copy_helper() {
+        let env = setup().await;
+        let source_store = env
+            .store_manager
+            .get_store("user-001")
+            .await
+            .expect("source store");
+
+        let mem = make_memory("original content", "user-001", "user-001");
+        source_store.create(&mem, None).await.expect("create");
+
+        let team_space = make_space("team:backend", "user-001");
+        env.space_store
+            .create_space(&team_space)
+            .await
+            .expect("create space");
+
+        let target_store = env
+            .store_manager
+            .get_store("team:backend")
+            .await
+            .expect("target store");
+
+        let copy = make_shared_copy(&mem, "team:backend", "user-001", "agent-1");
+        let old_copy_id = copy.id.clone();
+        target_store.create(&copy, None).await.expect("create copy");
+
+        let mut updated_source = mem.clone();
+        updated_source.content = "updated content".to_string();
+        source_store
+            .update(&updated_source, None)
+            .await
+            .expect("update source");
+
+        let new_copy = refresh_shared_copy(
+            &env.store_manager,
+            &env.space_store,
+            &copy,
+            "user-001",
+            "agent-1",
+        )
+        .await
+        .expect("refresh");
+
+        assert_eq!(new_copy.content, "updated content");
+        assert_ne!(new_copy.id, old_copy_id);
+        assert_eq!(new_copy.space_id, "team:backend");
+        let prov = new_copy.provenance.expect("provenance");
+        assert_eq!(prov.shared_from_memory, mem.id);
+        assert_eq!(prov.source_version, Some(2));
+
+        let old = target_store
+            .get_by_id(&old_copy_id)
+            .await
+            .expect("get old");
+        assert!(old.is_some());
+        assert_eq!(
+            old.unwrap().state,
+            crate::domain::types::MemoryState::Deleted
+        );
     }
 }

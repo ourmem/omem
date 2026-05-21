@@ -550,10 +550,29 @@ pub async fn get_memory(
         .store_manager
         .get_store(&personal_space_id(&auth.tenant_id))
         .await?;
-    let memory = store
+    let mut memory = store
         .get_by_id(&id)
         .await?
         .ok_or_else(|| OmemError::NotFound(format!("memory {id}")))?;
+
+    if state.config.auto_refresh_shares && memory.provenance.is_some() {
+        if let Some(info) = check_stale_for_memory(&memory, &state.store_manager).await {
+            if info.is_stale && !info.source_deleted {
+                let agent_id = auth.agent_id.as_deref().unwrap_or("");
+                if let Ok(fresh) = super::sharing::refresh_shared_copy(
+                    &state.store_manager,
+                    &state.space_store,
+                    &memory,
+                    &auth.tenant_id,
+                    agent_id,
+                )
+                .await
+                {
+                    memory = fresh;
+                }
+            }
+        }
+    }
 
     let mut response = serde_json::to_value(&memory)
         .map_err(|e| OmemError::Internal(format!("serialize failed: {e}")))?;
