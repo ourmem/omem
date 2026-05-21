@@ -1221,7 +1221,7 @@ mod tests {
         let (store, _dir) = setup().await;
         let mem = make_memory("t-upd", "original content");
         store.create(&mem, None).await.unwrap();
-        assert_eq!(store.list(100, 0).await.unwrap().len(), 1);
+        assert_eq!(store.list(100, 0, false).await.unwrap().len(), 1);
 
         let mut fetched = store.get_by_id(&mem.id).await.unwrap().expect("created");
         let v0 = fetched.version.unwrap_or(0);
@@ -1230,7 +1230,7 @@ mod tests {
         store.update(&fetched, None).await.unwrap();
 
         // Exactly one row remains (no duplicate, no loss) with new content + bumped version.
-        let all = store.list(100, 0).await.unwrap();
+        let all = store.list(100, 0, false).await.unwrap();
         assert_eq!(all.len(), 1, "update must not duplicate or drop the row");
         let after = store
             .get_by_id(&mem.id)
