@@ -237,7 +237,7 @@ A user pulls a memory from a shared space into their personal space.
 
 ### Batch Share
 
-Share multiple memories at once. Runs up to 10 shares concurrently via `buffer_unordered(10)`. Hard limit: 500 memories per call.
+Share multiple memories at once. Runs up to 10 shares concurrently via `buffer_unordered(10)`. Limit: `OMEM_BATCH_SHARE_MAX` per call (default 500, `0` = unlimited).
 
 ```
   POST /v1/memories/batch-share
@@ -428,7 +428,7 @@ This is opt-in because it requires extra I/O (reading source memories from other
 | POST | `/v1/memories/{id}/pull` | Pull memory to personal Space |
 | POST | `/v1/memories/{id}/unshare` | Remove shared copy from Space |
 | POST | `/v1/memories/{id}/reshare` | Refresh stale shared copy |
-| POST | `/v1/memories/batch-share` | Share multiple memories (max 500) |
+| POST | `/v1/memories/batch-share` | Share multiple memories (max `OMEM_BATCH_SHARE_MAX`, default 500) |
 | POST | `/v1/memories/share-all` | Share all matching memories |
 
 ### Convenience APIs
@@ -820,13 +820,13 @@ The `require_approval` field exists on auto-share rules but has no effect. Rules
 
 LanceDB doesn't support cross-database vector queries. Each space has its own vector index. Cross-space search works by running independent searches per space and merging results. This means the same query might return slightly different results depending on each space's index state.
 
-### Share-all hard limit
+### Share-all limit (configurable)
 
-`POST /v1/memories/share-all` processes at most 5000 memories per call. For larger spaces, multiple calls are needed.
+`POST /v1/memories/share-all` and `share-all-to-user` process up to `OMEM_SHARE_ALL_MAX` memories per call (default 5000; set `0` to disable). Concurrency is bounded by `buffer_unordered(10)` regardless of the limit, so this is a count cap, not load protection — raise or disable it via the env var for larger spaces.
 
-### Batch share hard limit
+### Batch share limit (configurable)
 
-`POST /v1/memories/batch-share` accepts at most 500 memory IDs per call. Requests exceeding this limit return 400 Bad Request.
+`POST /v1/memories/batch-share` and `org/publish` accept up to `OMEM_BATCH_SHARE_MAX` memory IDs per call (default 500; set `0` to disable). Requests exceeding a non-zero limit return 400 Bad Request.
 
 ### No rate limiting on sharing
 
