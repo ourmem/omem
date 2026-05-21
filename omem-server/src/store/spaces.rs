@@ -8,11 +8,12 @@ use lancedb::Connection;
 use serde::{Deserialize, Serialize};
 
 use crate::domain::error::OmemError;
-use crate::domain::space::{SharingEvent, Space};
+use crate::domain::space::{PendingShare, SharingEvent, Space};
 
 const SPACES_TABLE: &str = "spaces";
 const SHARING_EVENTS_TABLE: &str = "sharing_events";
 const IMPORT_TASKS_TABLE: &str = "import_tasks";
+const PENDING_SHARES_TABLE: &str = "pending_shares";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ImportTaskRecord {
@@ -99,6 +100,16 @@ impl SpaceStore {
                 .await
                 .map_err(|e| {
                     OmemError::Storage(format!("failed to create import_tasks table: {e}"))
+                })?;
+        }
+
+        if !existing.contains(&PENDING_SHARES_TABLE.to_string()) {
+            self.spaces_db
+                .create_empty_table(PENDING_SHARES_TABLE, Self::pending_shares_schema())
+                .execute()
+                .await
+                .map_err(|e| {
+                    OmemError::Storage(format!("failed to create pending_shares table: {e}"))
                 })?;
         }
 
@@ -426,6 +437,113 @@ impl SpaceStore {
             }
         }
         Ok(tasks)
+    }
+
+    fn pending_shares_schema() -> Arc<Schema> {
+        Arc::new(Schema::new(vec![
+            Field::new("id", DataType::Utf8, false),
+            Field::new("target_space", DataType::Utf8, false),
+            Field::new("data", DataType::Utf8, false),
+            Field::new("created_at", DataType::Utf8, false),
+        ]))
+    }
+
+    async fn open_pending_shares_table(&self) -> Result<lancedb::table::Table, OmemError> {
+        self.spaces_db
+            .open_table(PENDING_SHARES_TABLE)
+            .execute()
+            .await
+            .map_err(|e| OmemError::Storage(format!("failed to open pending_shares table: {e}")))
+    }
+
+    pub async fn record_pending_share(&self, pending: &PendingShare) -> Result<(), OmemError> {
+        let data_json = serde_json::to_string(pending)
+            .map_err(|e| OmemError::Storage(format!("failed to serialize pending share: {e}")))?;
+
+        let batch = RecordBatch::try_new(
+            Self::pending_shares_schema(),
+            vec![
+                Arc::new(StringArray::from(vec![pending.id.as_str()])),
+                Arc::new(StringArray::from(vec![pending.target_space.as_str()])),
+                Arc::new(StringArray::from(vec![data_json.as_str()])),
+                Arc::new(StringArray::from(vec![pending.created_at.as_str()])),
+            ],
+        )
+        .map_err(|e| OmemError::Storage(format!("failed to build pending share batch: {e}")))?;
+
+        let table = self.open_pending_shares_table().await?;
+        let reader = RecordBatchIterator::new(vec![Ok(batch)], Self::pending_shares_schema());
+        table
+            .add(Box::new(reader) as Box<dyn arrow_array::RecordBatchReader + Send>)
+            .execute()
+            .await
+            .map_err(|e| OmemError::Storage(format!("failed to insert pending share: {e}")))?;
+
+        Ok(())
+    }
+
+    pub async fn list_pending_shares(
+        &self,
+        target_space: &str,
+    ) -> Result<Vec<PendingShare>, OmemError> {
+        let table = self.open_pending_shares_table().await?;
+        let batches: Vec<RecordBatch> = table
+            .query()
+            .only_if(format!("target_space = '{}'", escape_sql(target_space)))
+            .execute()
+            .await
+            .map_err(|e| OmemError::Storage(format!("list pending shares query failed: {e}")))?
+            .try_collect()
+            .await
+            .map_err(|e| OmemError::Storage(format!("collect failed: {e}")))?;
+
+        let mut out = Vec::new();
+        for batch in &batches {
+            for i in 0..batch.num_rows() {
+                out.push(Self::row_to_pending_share(batch, i)?);
+            }
+        }
+        Ok(out)
+    }
+
+    pub async fn get_pending_share(&self, id: &str) -> Result<Option<PendingShare>, OmemError> {
+        let table = self.open_pending_shares_table().await?;
+        let batches: Vec<RecordBatch> = table
+            .query()
+            .only_if(format!("id = '{}'", escape_sql(id)))
+            .limit(1)
+            .execute()
+            .await
+            .map_err(|e| OmemError::Storage(format!("pending share query failed: {e}")))?
+            .try_collect()
+            .await
+            .map_err(|e| OmemError::Storage(format!("collect failed: {e}")))?;
+
+        for batch in &batches {
+            if batch.num_rows() > 0 {
+                return Ok(Some(Self::row_to_pending_share(batch, 0)?));
+            }
+        }
+        Ok(None)
+    }
+
+    pub async fn delete_pending_share(&self, id: &str) -> Result<(), OmemError> {
+        let table = self.open_pending_shares_table().await?;
+        table
+            .delete(&format!("id = '{}'", escape_sql(id)))
+            .await
+            .map_err(|e| OmemError::Storage(format!("pending share delete failed: {e}")))?;
+        Ok(())
+    }
+
+    fn row_to_pending_share(batch: &RecordBatch, row: usize) -> Result<PendingShare, OmemError> {
+        let data = batch
+            .column_by_name("data")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>())
+            .ok_or_else(|| OmemError::Storage("pending_shares missing data column".to_string()))?
+            .value(row);
+        serde_json::from_str(data)
+            .map_err(|e| OmemError::Storage(format!("failed to parse pending share: {e}")))
     }
 
     fn row_to_space(batch: &RecordBatch, row: usize) -> Result<Space, OmemError> {

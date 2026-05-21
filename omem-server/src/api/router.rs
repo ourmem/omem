@@ -70,6 +70,15 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/v1/memories/{id}/pull", post(handlers::pull_memory))
         .route("/v1/memories/{id}/unshare", post(handlers::unshare_memory))
         .route("/v1/memories/{id}/reshare", post(handlers::reshare_memory))
+        .route("/v1/shares/pending", get(handlers::list_pending_shares))
+        .route(
+            "/v1/shares/pending/{id}/approve",
+            post(handlers::approve_pending_share),
+        )
+        .route(
+            "/v1/shares/pending/{id}/reject",
+            post(handlers::reject_pending_share),
+        )
         .route("/v1/memories/batch-share", post(handlers::batch_share))
         .route("/v1/memories/share-all", post(handlers::share_all))
         .route(
