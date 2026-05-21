@@ -514,20 +514,15 @@ impl RetrievalPipeline {
         (entries, stage)
     }
 
-    fn stage_length_normalization(mut entries: Vec<FusionEntry>) -> (Vec<FusionEntry>, StageTrace) {
+    fn stage_length_normalization(entries: Vec<FusionEntry>) -> (Vec<FusionEntry>, StageTrace) {
         let stage_start = Instant::now();
         let input_count = entries.len();
 
-        for entry in &mut entries {
-            let len_ratio = entry.memory.content.len() as f32 / 500.0;
-            let log_val = if len_ratio > 0.0 {
-                len_ratio.log2()
-            } else {
-                0.0
-            };
-            let denominator = (1.0 + log_val).max(1.0);
-            entry.rrf_score /= denominator;
-        }
+        // Length normalization DISABLED. Cosine vector similarity is already
+        // length-invariant, so dividing the fused score by (1 + log2(len/500))
+        // double-penalized long memories — up to ~4x for a 4KB note — burying
+        // detailed runbooks/inventories under short, less-relevant entries.
+        // This is a recall store: document length must not suppress recall.
 
         let score_range = fusion_score_range(&entries);
 
@@ -1075,14 +1070,17 @@ mod tests {
         let (long_result, _) = RetrievalPipeline::stage_length_normalization(long_entries);
         let long_score = long_result[0].rrf_score;
 
+        // Length normalization is disabled: cosine similarity is already
+        // length-invariant, so a long memory keeps the same fused score as a
+        // short one — no length penalty.
         assert!(
-            short_score > long_score,
-            "short ({short_score}) should score higher than long ({long_score})"
+            (short_score - long_score).abs() < f32::EPSILON,
+            "length must not change the score: short={short_score} long={long_score}"
         );
 
         assert!(
-            (short_score - 1.0).abs() < f32::EPSILON,
-            "short content should not be penalized: got {short_score}"
+            (long_score - 1.0).abs() < f32::EPSILON,
+            "long content must not be penalized by length: got {long_score}"
         );
     }
 
