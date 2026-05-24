@@ -493,6 +493,7 @@ ssh user@server "gunzip /opt/omem-server.gz && chmod +x /opt/omem-server && /opt
 | [docs/SHARING.md](docs/SHARING.md) | 记忆共享架构、流程和教程 |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Docker 与 AWS 部署指南 |
 | [docs/PLUGINS.md](docs/PLUGINS.md) | 4 个平台的插件安装指南 |
+| [docs/TWEETCLAW_OPENCLAW.md](docs/TWEETCLAW_OPENCLAW.md) | OpenClaw 工作流：将 TweetClaw X/Twitter 研究决策存入 ourmem |
 | [skills/ourmem/SKILL.md](skills/ourmem/SKILL.md) | AI Agent 入门技能 |
 
 ## 许可证
