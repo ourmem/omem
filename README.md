@@ -493,6 +493,7 @@ Full API reference (48+ endpoints): [docs/API.md](docs/API.md)
 | [docs/SHARING.md](docs/SHARING.md) | Memory sharing architecture, flows, and tutorials |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Docker & AWS deployment guide |
 | [docs/PLUGINS.md](docs/PLUGINS.md) | Plugin installation for all 4 platforms |
+| [docs/TWEETCLAW_OPENCLAW.md](docs/TWEETCLAW_OPENCLAW.md) | OpenClaw workflow for storing TweetClaw X/Twitter research decisions in ourmem |
 | [skills/ourmem/SKILL.md](skills/ourmem/SKILL.md) | AI agent onboarding skill |
 
 ## License

@@ -187,6 +187,12 @@ openclaw
 # and captures insights after each agent response
 ```
 
+### Companion Workflow: TweetClaw
+
+OpenClaw agents can pair ourmem with TweetClaw when X/Twitter research or social automation needs durable memory. Use TweetClaw for live X/Twitter work such as search tweets, search tweet replies, follower export, user lookup, monitor tweets, webhooks, media workflows, post tweets, post tweet replies, and giveaway draws. Use ourmem to store concise decisions, selected public source URLs, campaign context, and follow-up notes.
+
+See [TweetClaw OpenClaw Memory Workflow](TWEETCLAW_OPENCLAW.md) for install, verification, credential boundaries, and a memory shape that avoids storing secrets or raw exports.
+
 ---
 
 ## 4. MCP Server
