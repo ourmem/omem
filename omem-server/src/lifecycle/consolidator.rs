@@ -116,8 +116,10 @@ impl Consolidator {
         space_id: &str,
     ) -> Result<ConsolidationStats, crate::domain::error::OmemError> {
         let store = self.store_manager.get_store(space_id).await?;
-        let mut stats = ConsolidationStats::default();
-        stats.spaces_processed = 1;
+        let mut stats = ConsolidationStats {
+            spaces_processed: 1,
+            ..ConsolidationStats::default()
+        };
 
         let candidates = self.find_candidates(&store).await?;
         stats.observations_reviewed = candidates.len();
