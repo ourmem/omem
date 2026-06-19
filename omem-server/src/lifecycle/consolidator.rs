@@ -154,8 +154,12 @@ impl Consolidator {
                         .parse()
                         .unwrap_or(source_mem.category.clone());
 
-                    let mut new_mem =
-                        Memory::new(&decision.l2_content, category, MemoryType::Insight, &source_mem.tenant_id);
+                    let mut new_mem = Memory::new(
+                        &decision.l2_content,
+                        category,
+                        MemoryType::Insight,
+                        &source_mem.tenant_id,
+                    );
                     new_mem.l0_abstract = decision.l0_abstract.clone();
                     new_mem.l1_overview = decision.l1_overview.clone();
                     new_mem.l2_content = decision.l2_content.clone();
