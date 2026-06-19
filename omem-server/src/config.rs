@@ -24,6 +24,12 @@ pub struct OmemConfig {
     pub share_rate_per_min: u32,
     /// When true, stale shared copies are auto-refreshed on read (get_memory).
     pub auto_refresh_shares: bool,
+    /// Enable the periodic consolidation cron that promotes session memories to insights.
+    pub consolidation_enabled: bool,
+    /// How often the consolidation cron runs, in seconds. Default: 3600 (1 hour).
+    pub consolidation_interval_secs: u64,
+    /// How far back to look for unconsolidated session memories, in hours. Default: 24.
+    pub consolidation_lookback_hours: u64,
 }
 
 impl Default for OmemConfig {
@@ -47,6 +53,9 @@ impl Default for OmemConfig {
             share_all_max: 5000,
             share_rate_per_min: 0,
             auto_refresh_shares: false,
+            consolidation_enabled: false,
+            consolidation_interval_secs: 3600,
+            consolidation_lookback_hours: 24,
         }
     }
 }
@@ -99,6 +108,23 @@ impl OmemConfig {
                     )
                 })
                 .unwrap_or(defaults.auto_refresh_shares),
+            consolidation_enabled: env::var("OMEM_CONSOLIDATION_ENABLED")
+                .ok()
+                .map(|v| {
+                    matches!(
+                        v.trim().to_ascii_lowercase().as_str(),
+                        "1" | "true" | "yes" | "on"
+                    )
+                })
+                .unwrap_or(defaults.consolidation_enabled),
+            consolidation_interval_secs: env::var("OMEM_CONSOLIDATION_INTERVAL_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(defaults.consolidation_interval_secs),
+            consolidation_lookback_hours: env::var("OMEM_CONSOLIDATION_LOOKBACK_HOURS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(defaults.consolidation_lookback_hours),
         }
     }
 

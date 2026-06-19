@@ -225,6 +225,26 @@ impl SpaceStore {
         Ok(None)
     }
 
+    pub async fn list_all_spaces(&self) -> Result<Vec<Space>, OmemError> {
+        let table = self.open_spaces_table().await?;
+        let batches: Vec<RecordBatch> = table
+            .query()
+            .execute()
+            .await
+            .map_err(|e| OmemError::Storage(format!("list all spaces query failed: {e}")))?
+            .try_collect()
+            .await
+            .map_err(|e| OmemError::Storage(format!("collect failed: {e}")))?;
+
+        let mut spaces = Vec::new();
+        for batch in &batches {
+            for i in 0..batch.num_rows() {
+                spaces.push(Self::row_to_space(batch, i)?);
+            }
+        }
+        Ok(spaces)
+    }
+
     pub async fn list_spaces_for_user(&self, user_id: &str) -> Result<Vec<Space>, OmemError> {
         let table = self.open_spaces_table().await?;
         // Query ALL spaces — we filter in Rust to catch both owner and member matches.
