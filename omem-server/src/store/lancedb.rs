@@ -28,6 +28,11 @@ const TABLE_NAME: &str = "memories";
 /// Excludes deleted (soft-deleted) and superseded (replaced by another memory).
 const DEFAULT_STATE_FILTER: &str = "state NOT IN ('deleted', 'superseded')";
 
+/// Confidence multiplier applied to a memory that supersedes existing ones.
+/// A replacement fact starts at reduced confidence until reinforced by further
+/// access (the frequency/decay scoring naturally lifts it over time).
+pub const SUPERSEDE_CONFIDENCE_PENALTY: f32 = 0.8;
+
 /// State filter that includes superseded memories.
 /// Use when an explicit caller wants to see historical/replaced entries.
 const STATE_FILTER_KEEPING_SUPERSEDED: &str = "state != 'deleted'";
@@ -668,7 +673,9 @@ impl LanceStore {
             )));
         }
 
-        self.create(new, new_vector).await?;
+        let mut penalised = new.clone();
+        penalised.confidence = (new.confidence * SUPERSEDE_CONFIDENCE_PENALTY).clamp(0.0, 1.0);
+        self.create(&penalised, new_vector).await?;
 
         let now = chrono::Utc::now().to_rfc3339();
         let mut update_failures = Vec::new();
@@ -1720,5 +1727,46 @@ mod tests {
         // get_by_id always returns regardless of state (history preserved).
         let direct = store.get_by_id(&old.id).await.unwrap();
         assert!(direct.is_some(), "get_by_id should still return superseded");
+    }
+
+    #[tokio::test]
+    async fn test_supersede_applies_confidence_penalty() {
+        let (store, _dir) = setup().await;
+        let v = vec![0.1f32; DEFAULT_VECTOR_DIM as usize];
+
+        let old = make_memory("t-001", "original fact");
+        store.create(&old, Some(&v)).await.unwrap();
+
+        let mut new = make_memory("t-001", "replacement fact");
+        new.confidence = 0.5;
+
+        store
+            .supersede_batch(&new, Some(&v), &[old.id.clone()])
+            .await
+            .unwrap();
+
+        let stored = store.get_by_id(&new.id).await.unwrap().unwrap();
+        let expected = 0.5 * SUPERSEDE_CONFIDENCE_PENALTY;
+        assert!(
+            (stored.confidence - expected).abs() < f32::EPSILON,
+            "confidence should be {expected}, got {}",
+            stored.confidence
+        );
+    }
+
+    #[tokio::test]
+    async fn test_supersede_no_penalty_without_old_ids() {
+        let (store, _dir) = setup().await;
+
+        let mut mem = make_memory("t-001", "new fact, no replacement");
+        mem.confidence = 0.5;
+        store.supersede_batch(&mem, None, &[]).await.unwrap();
+
+        let stored = store.get_by_id(&mem.id).await.unwrap().unwrap();
+        assert!(
+            (stored.confidence - 0.5).abs() < f32::EPSILON,
+            "confidence should be unchanged at 0.5 when no old_ids, got {}",
+            stored.confidence
+        );
     }
 }
