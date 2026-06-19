@@ -81,8 +81,7 @@ async fn main() {
             .expect("failed to create LLM service"),
     );
 
-    let shutdown_tx =
-        spawn_consolidation_cron(&config, &store_manager, &space_store, &llm, &embed);
+    let shutdown_tx = spawn_consolidation_cron(&config, &store_manager, &space_store, &llm, &embed);
 
     let state = Arc::new(AppState {
         store_manager,
