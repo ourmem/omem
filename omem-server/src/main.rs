@@ -5,6 +5,7 @@ use tracing_subscriber::{fmt, EnvFilter};
 use omem_server::api::{build_router, AppState};
 use omem_server::config::OmemConfig;
 use omem_server::embed::{create_embed_service, EmbedService};
+use omem_server::lifecycle::consolidator::{ConsolidationConfig, Consolidator};
 use omem_server::llm::{create_llm_service, LlmService};
 use omem_server::store::{SpaceStore, StoreManager, TenantStore};
 
@@ -80,6 +81,14 @@ async fn main() {
             .expect("failed to create LLM service"),
     );
 
+    let shutdown_tx = spawn_consolidation_cron(
+        &config,
+        &store_manager,
+        &space_store,
+        &llm,
+        &embed,
+    );
+
     let state = Arc::new(AppState {
         store_manager,
         tenant_store,
@@ -107,6 +116,56 @@ async fn main() {
         .with_graceful_shutdown(shutdown_signal())
         .await
         .expect("server error");
+
+    if let Some(tx) = shutdown_tx {
+        let _ = tx.send(true);
+    }
+}
+
+fn spawn_consolidation_cron(
+    config: &OmemConfig,
+    store_manager: &Arc<StoreManager>,
+    space_store: &Arc<SpaceStore>,
+    llm: &Arc<dyn LlmService>,
+    embed: &Arc<dyn EmbedService>,
+) -> Option<tokio::sync::watch::Sender<bool>> {
+    if !config.consolidation_enabled {
+        return None;
+    }
+
+    let (tx, mut rx) = tokio::sync::watch::channel(false);
+    let consolidator = Consolidator::new(
+        Arc::clone(store_manager),
+        Arc::clone(space_store),
+        Arc::clone(llm),
+        Arc::clone(embed),
+        ConsolidationConfig {
+            lookback_hours: config.consolidation_lookback_hours,
+            ..ConsolidationConfig::default()
+        },
+    );
+    let interval_secs = config.consolidation_interval_secs;
+
+    tokio::spawn(async move {
+        tracing::info!(interval_secs, "consolidation cron started");
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
+        interval.tick().await;
+        loop {
+            tokio::select! {
+                _ = interval.tick() => {
+                    if let Err(e) = consolidator.run_once().await {
+                        tracing::warn!(error = %e, "consolidation cycle failed");
+                    }
+                }
+                _ = rx.changed() => {
+                    tracing::info!("consolidation cron shutting down");
+                    break;
+                }
+            }
+        }
+    });
+
+    Some(tx)
 }
 
 async fn shutdown_signal() {
