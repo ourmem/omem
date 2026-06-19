@@ -260,8 +260,7 @@ impl Reconciler {
         }
 
         let mut new_mem = self.create_fact_memory(fact, tenant_id).await?;
-        new_mem.confidence =
-            (new_mem.confidence * SUPERSEDE_CONFIDENCE_PENALTY).clamp(0.0, 1.0);
+        new_mem.confidence = (new_mem.confidence * SUPERSEDE_CONFIDENCE_PENALTY).clamp(0.0, 1.0);
         self.store.update(&new_mem, None).await?;
 
         let mut archived = old;
@@ -367,8 +366,7 @@ impl Reconciler {
         }
 
         let mut new_mem = self.create_fact_memory(fact, tenant_id).await?;
-        new_mem.confidence =
-            (new_mem.confidence * SUPERSEDE_CONFIDENCE_PENALTY).clamp(0.0, 1.0);
+        new_mem.confidence = (new_mem.confidence * SUPERSEDE_CONFIDENCE_PENALTY).clamp(0.0, 1.0);
         new_mem.relations.push(MemoryRelation {
             relation_type: RelationType::Contradicts,
             target_id: real_id.clone(),
