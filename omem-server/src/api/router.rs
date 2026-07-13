@@ -10,6 +10,9 @@ use crate::api::server::AppState;
 
 pub fn build_router(state: Arc<AppState>) -> Router {
     let authed_routes = Router::new()
+        // Tenant creation requires a valid key: any active tenant may mint
+        // another; anonymous callers cannot. (Was on public_routes.)
+        .route("/v1/tenants", post(handlers::create_tenant))
         .route("/v1/memories/search", get(handlers::search_memories))
         .route("/v1/memories/batch-delete", post(handlers::batch_delete))
         .route("/v1/memories/all", delete(handlers::delete_all_memories))
@@ -104,9 +107,13 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             auth_middleware,
         ));
 
+    // NOTE: /v1/tenants (tenant + api-key minting) is intentionally NOT here.
+    // It lives on authed_routes so a caller must already hold a valid key to
+    // create another tenant. Leaving it public let anyone who could reach the
+    // port mint an active tenant with a working key. /health and the github
+    // webhook (HMAC-verified in the handler) stay public.
     let public_routes = Router::new()
         .route("/health", get(health))
-        .route("/v1/tenants", post(handlers::create_tenant))
         .route(
             "/v1/connectors/github/webhook",
             post(handlers::github_webhook),
