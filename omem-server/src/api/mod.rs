@@ -21,6 +21,7 @@ mod tests {
     use crate::api::{build_router, AppState};
     use crate::config::OmemConfig;
     use crate::domain::error::OmemError;
+    use crate::domain::tenant::{Tenant, TenantConfig, TenantStatus};
     use crate::embed::EmbedService;
     use crate::llm::LlmService;
     use crate::store::{SpaceStore, StoreManager, TenantStore};
@@ -61,6 +62,12 @@ mod tests {
         });
     }
 
+    /// Tenant creation is authenticated (see router.rs), so the suite needs one
+    /// tenant to exist before it can mint any others. Seed it straight into the
+    /// store — the same out-of-band bootstrap a fresh instance needs. The API
+    /// key IS the tenant id, so this constant doubles as the key.
+    const TEST_BOOTSTRAP_KEY: &str = "test-bootstrap-tenant";
+
     async fn setup_app() -> (axum::Router, tempfile::TempDir) {
         install_crypto_provider();
         let dir = tempfile::TempDir::new().expect("temp dir");
@@ -71,6 +78,17 @@ mod tests {
         let system_uri = format!("{}/_system", uri);
         let tenant_store = Arc::new(TenantStore::new(&system_uri).await.expect("tenant store"));
         tenant_store.init_table().await.expect("init tenants");
+
+        tenant_store
+            .create(&Tenant {
+                id: TEST_BOOTSTRAP_KEY.to_string(),
+                name: "bootstrap".to_string(),
+                status: TenantStatus::Active,
+                config: TenantConfig::default(),
+                created_at: chrono::Utc::now().to_rfc3339(),
+            })
+            .await
+            .expect("seed bootstrap tenant");
 
         let space_store = Arc::new(SpaceStore::new(&system_uri).await.expect("space store"));
         space_store.init_tables().await.expect("init spaces");
@@ -101,6 +119,7 @@ mod tests {
                     .method("POST")
                     .uri("/v1/tenants")
                     .header("content-type", "application/json")
+                    .header("x-api-key", TEST_BOOTSTRAP_KEY)
                     .body(Body::from(r#"{"name":"test-workspace"}"#))
                     .expect("request"),
             )
@@ -174,6 +193,7 @@ mod tests {
                     .method("POST")
                     .uri("/v1/tenants")
                     .header("content-type", "application/json")
+                    .header("x-api-key", TEST_BOOTSTRAP_KEY)
                     .body(Body::from(r#"{"name":"my-workspace"}"#))
                     .expect("request"),
             )
@@ -941,6 +961,28 @@ mod tests {
             .is_empty());
     }
 
+    /// Regression test for moving POST /v1/tenants behind auth_middleware.
+    /// Before that, any client that could reach the port could mint an active
+    /// tenant and get a working API key back.
+    #[tokio::test]
+    async fn test_create_tenant_requires_auth() {
+        let (app, _dir) = setup_app().await;
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/tenants")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"name":"anonymous-workspace"}"#))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
     #[tokio::test]
     async fn test_tenant_without_name_auto_generates() {
         let (app, _dir) = setup_app().await;
@@ -951,6 +993,7 @@ mod tests {
                     .method("POST")
                     .uri("/v1/tenants")
                     .header("content-type", "application/json")
+                    .header("x-api-key", TEST_BOOTSTRAP_KEY)
                     .body(Body::from(r#"{"name":""}"#))
                     .expect("request"),
             )
