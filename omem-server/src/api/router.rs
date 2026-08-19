@@ -112,12 +112,10 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     // create another tenant. Leaving it public let anyone who could reach the
     // port mint an active tenant with a working key. /health and the github
     // webhook (HMAC-verified in the handler) stay public.
-    let public_routes = Router::new()
-        .route("/health", get(health))
-        .route(
-            "/v1/connectors/github/webhook",
-            post(handlers::github_webhook),
-        );
+    let public_routes = Router::new().route("/health", get(health)).route(
+        "/v1/connectors/github/webhook",
+        post(handlers::github_webhook),
+    );
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
